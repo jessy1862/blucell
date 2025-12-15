@@ -1,0 +1,8 @@
+{
+  "name": "Copy of BLUCELL",
+  "description": "Premium hybrid e-commerce and gadget repair platform connecting users with tech products and expert fixers.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
