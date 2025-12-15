@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { User, ChatMessage, Product, Order, UserRole, AvailabilityStatus, RepairJob, ChatSession } from '../types';
-import { MOCK_REPAIRS, MOCK_ORDERS, MOCK_ALL_USERS, MOCK_ALL_ORDERS } from '../constants';
+import { User, ChatMessage, Product, Order, UserRole, AvailabilityStatus, RepairJob, ChatSession, LandingPageConfig, ContactInfo, ContactMessage } from '../types';
+import { MOCK_REPAIRS, MOCK_ORDERS, MOCK_ALL_USERS, MOCK_ALL_ORDERS, DEFAULT_CONTACT_INFO } from '../constants';
 import { Card, Button, Badge, Input } from '../components/ui';
-import { Package, Wrench, MessageSquare, MapPin, BarChart3, CheckCircle, Smartphone, User as UserIcon, MoreHorizontal, Plus, Trash2, Edit, Search, Users, ShoppingBag, LayoutDashboard, Settings, ChevronRight, LogOut, X, Save, Download, Filter, Circle, Upload, Star, Send, MessageCircle } from 'lucide-react';
+import { Package, Wrench, MessageSquare, MapPin, BarChart3, CheckCircle, Smartphone, User as UserIcon, MoreHorizontal, Plus, Trash2, Edit, Search, Users, ShoppingBag, LayoutDashboard, Settings, ChevronRight, LogOut, X, Save, Download, Filter, Circle, Upload, Star, Send, MessageCircle, Globe, Briefcase, Mail, Eye, Layout, PenTool } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 
 const ADMIN_DATA = [
   { name: 'Mon', repairs: 12, sales: 2400 },
@@ -28,6 +28,11 @@ interface DashboardProps {
   formatPrice?: (price: number) => string;
   supportSessions?: ChatSession[];
   onAdminReply?: (sessionId: string, text: string) => void;
+  landingPageConfig?: LandingPageConfig;
+  onUpdateLandingPage?: (config: LandingPageConfig) => void;
+  contactInfo?: ContactInfo;
+  onUpdateContactInfo?: (info: ContactInfo) => void;
+  contactMessages?: ContactMessage[];
 }
 
 // --- Shared Components ---
@@ -129,6 +134,119 @@ const ChatWidget = ({ fixerName, fixerStatus, repairContext, onClose, isOpen }: 
   );
 };
 
+// --- Standard Dashboard Component (Client View) ---
+
+const StandardDashboard = ({ user, formatPrice = (p) => `$${p}`, onUpdateUser }: { user: User, onUpdateUser?: (data: Partial<User>) => void, formatPrice?: (price: number) => string }) => {
+    // Using default mock data for demonstration
+    const repairs = MOCK_REPAIRS.filter(r => r.customerId === 'u1'); 
+    const orders = MOCK_ORDERS;
+
+    return (
+        <div className="max-w-7xl mx-auto p-4 md:p-8 animate-fade-in">
+             <div className="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold text-silver-900 dark:text-white">My Dashboard</h1>
+                    <p className="text-silver-500">Welcome back, {user.name}</p>
+                </div>
+                <Link to="/repair">
+                    <Button>Book New Repair</Button>
+                </Link>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Repairs Section */}
+                <div className="lg:col-span-2 space-y-6">
+                    <h2 className="text-xl font-bold text-silver-900 dark:text-white flex items-center gap-2">
+                        <Wrench className="w-5 h-5 text-blucell-600" /> Active Repairs
+                    </h2>
+                    {repairs.length > 0 ? (
+                        repairs.map(repair => (
+                             <Card key={repair.id} className="p-6">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 className="font-bold text-lg">{repair.deviceType}</h3>
+                                        <p className="text-sm text-silver-500">ID: {repair.id}</p>
+                                    </div>
+                                    <Badge color={repair.status === 'COMPLETED' ? 'green' : 'blue'}>{repair.status}</Badge>
+                                </div>
+                                <div className="space-y-2 mb-4">
+                                    <p className="text-sm text-silver-600 dark:text-silver-300"><strong>Issue:</strong> {repair.issueDescription}</p>
+                                    {repair.aiDiagnosis && (
+                                        <div className="p-3 bg-blucell-50 dark:bg-blucell-900/20 rounded-lg text-sm border border-blucell-100 dark:border-blucell-800">
+                                            <span className="font-bold text-blucell-700 dark:text-blucell-300">AI Note:</span> {repair.aiDiagnosis}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center pt-4 border-t border-silver-100 dark:border-silver-800">
+                                     <div className="text-sm text-silver-500">
+                                        Estimated Cost: <span className="font-bold text-silver-900 dark:text-white">{repair.estimatedCost ? formatPrice(repair.estimatedCost) : 'Pending'}</span>
+                                     </div>
+                                     <Button size="sm" variant="outline">View Details</Button>
+                                </div>
+                             </Card>
+                        ))
+                    ) : (
+                        <Card className="p-8 text-center text-silver-500">
+                            <p>No active repairs.</p>
+                        </Card>
+                    )}
+
+                    <h2 className="text-xl font-bold text-silver-900 dark:text-white flex items-center gap-2 mt-8">
+                        <Package className="w-5 h-5 text-blucell-600" /> Recent Orders
+                    </h2>
+                    <div className="space-y-4">
+                        {orders.map(order => (
+                            <Card key={order.id} className="p-4 flex flex-col sm:flex-row gap-4 items-center">
+                                <div className="p-3 bg-silver-100 dark:bg-silver-800 rounded-lg">
+                                    <ShoppingBag className="w-6 h-6 text-silver-500" />
+                                </div>
+                                <div className="flex-1 text-center sm:text-left">
+                                    <h4 className="font-bold">Order #{order.id}</h4>
+                                    <p className="text-sm text-silver-500">{order.items.length} items • {order.date}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold">{formatPrice(order.total)}</p>
+                                    <Badge color={order.status === 'DELIVERED' ? 'green' : 'yellow'}>{order.status}</Badge>
+                                </div>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Profile / Stats Sidebar */}
+                <div className="space-y-6">
+                    <Card className="p-6 text-center">
+                        <img src={user.avatar} alt={user.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-silver-100 dark:border-silver-800" />
+                        <h3 className="font-bold text-xl">{user.name}</h3>
+                        <p className="text-silver-500 mb-6">{user.email}</p>
+                        <Link to="/settings">
+                            <Button variant="outline" className="w-full">Edit Profile</Button>
+                        </Link>
+                    </Card>
+                    
+                    <Card className="p-6">
+                        <h3 className="font-bold mb-4">Quick Stats</h3>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-silver-500">Total Orders</span>
+                                <span className="font-bold">{orders.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-silver-500">Repairs</span>
+                                <span className="font-bold">{repairs.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-silver-500">Member Since</span>
+                                <span className="font-bold">2023</span>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- Admin Views ---
 
 const AdminDashboard = ({ 
@@ -140,7 +258,13 @@ const AdminDashboard = ({
     onUpdatePlatformSettings,
     formatPrice = (p) => `$${p}`,
     supportSessions = [],
-    onAdminReply
+    onAdminReply,
+    landingPageConfig,
+    onUpdateLandingPage,
+    contactInfo = DEFAULT_CONTACT_INFO,
+    onUpdateContactInfo,
+    contactMessages = [],
+    onUpdateUser
 }: DashboardProps) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -150,6 +274,8 @@ const AdminDashboard = ({
     // Admin Data State
     const [users, setUsers] = useState<User[]>(MOCK_ALL_USERS);
     const [orders, setOrders] = useState<Order[]>(MOCK_ALL_ORDERS);
+    // Local Repairs State to simulate updates in Technician view
+    const [allRepairs, setAllRepairs] = useState<RepairJob[]>(MOCK_REPAIRS);
     const [searchTerm, setSearchTerm] = useState('');
     const [settings, setSettings] = useState({ 
         platformName: 'BLUCELL', 
@@ -167,6 +293,18 @@ const AdminDashboard = ({
     // Add User State
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
     const [newUserData, setNewUserData] = useState({ name: '', email: '', role: 'CUSTOMER' as UserRole });
+
+    // Fixer Recruit State
+    const [isRecruitModalOpen, setIsRecruitModalOpen] = useState(false);
+
+    // CMS State
+    const [cmsConfig, setCmsConfig] = useState<LandingPageConfig>(landingPageConfig!);
+    const [localContactInfo, setLocalContactInfo] = useState<ContactInfo>(contactInfo);
+
+    useEffect(() => {
+        if (landingPageConfig) setCmsConfig(landingPageConfig);
+        if (contactInfo) setLocalContactInfo(contactInfo);
+    }, [landingPageConfig, contactInfo]);
 
     // --- Actions ---
 
@@ -249,6 +387,10 @@ const AdminDashboard = ({
         setEditingUser(null);
     };
 
+    const handleUpdateRepairStatus = (repairId: string, newStatus: RepairJob['status']) => {
+        setAllRepairs(prev => prev.map(r => r.id === repairId ? { ...r, status: newStatus } : r));
+    };
+
     const handleAddUser = (e: React.FormEvent) => {
         e.preventDefault();
         const newUser: User = {
@@ -288,6 +430,41 @@ const AdminDashboard = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    // CMS Handlers
+    const handleCmsChange = (section: keyof LandingPageConfig, field: string, value: any, index?: number, subfield?: string) => {
+        setCmsConfig(prev => {
+            const newConfig = { ...prev };
+            if (index !== undefined && subfield) {
+                // @ts-ignore
+                newConfig[section][index][subfield] = value;
+            } else if (index !== undefined) {
+                 // @ts-ignore
+                 newConfig[section][index] = value;
+            } else {
+                // @ts-ignore
+                newConfig[section][field] = value;
+            }
+            return newConfig;
+        });
+    };
+
+    const handleCmsImageUpload = (section: keyof LandingPageConfig, field: string, index?: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                handleCmsChange(section, field, reader.result as string, index, field === 'image' ? 'image' : undefined);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const saveCms = () => {
+        onUpdateLandingPage?.(cmsConfig);
+        onUpdateContactInfo?.(localContactInfo);
+        alert('Website & Contact Info Updated!');
     };
 
     // --- Computed ---
@@ -331,6 +508,354 @@ const AdminDashboard = ({
                 </div>
                 {children}
             </div>
+        </div>
+    );
+
+    const ImageUploader = ({ label, value, onChange }: { label: string, value: string, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => (
+        <div className="space-y-2">
+            <label className="block text-sm font-medium text-silver-700 dark:text-silver-300">{label}</label>
+            <div className="flex gap-4 items-center">
+                <div className="flex-1">
+                    <div className="relative">
+                        <Input 
+                            value={value} 
+                            readOnly
+                            className="pr-24" 
+                        />
+                        <div className="absolute right-1 top-1 bottom-1">
+                            <label className="flex items-center justify-center px-3 h-full bg-silver-100 dark:bg-silver-800 hover:bg-silver-200 dark:hover:bg-silver-700 rounded text-xs font-medium cursor-pointer transition-colors border-l border-silver-200 dark:border-silver-700 text-silver-700 dark:text-silver-300">
+                                <Upload className="w-3 h-3 mr-1" /> Upload
+                                <input type="file" className="hidden" accept="image/*" onChange={onChange} />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                {value && (
+                    <div className="w-12 h-12 rounded-lg border border-silver-200 dark:border-silver-700 overflow-hidden shrink-0 bg-silver-50">
+                        <img src={value} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderTechnicianWorkspace = () => {
+        // Find jobs assigned to this user (the admin)
+        const myJobs = allRepairs.filter(r => r.fixerId === user.id);
+
+        return (
+            <div className="space-y-6 animate-fade-in">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-silver-900 dark:text-white">Technician Workspace</h2>
+                        <p className="text-silver-500 text-sm">Manage repairs assigned to you.</p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-silver-100 dark:bg-silver-800 p-1 rounded-full">
+                        <span className="text-xs font-medium px-3 text-silver-500">Status:</span>
+                        <button className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">ONLINE</button>
+                    </div>
+                </div>
+
+                {myJobs.length === 0 ? (
+                    <div className="text-center py-20 bg-silver-50 dark:bg-silver-900 rounded-xl border-dashed border-2 border-silver-200 dark:border-silver-700">
+                        <Wrench className="w-12 h-12 text-silver-300 mx-auto mb-3" />
+                        <p className="text-silver-500">No active repair jobs assigned to you.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {myJobs.map(job => (
+                            <Card key={job.id} className="p-6 border-l-4 border-l-blucell-500">
+                                <div className="flex justify-between items-start mb-4">
+                                    <Badge color={job.status === 'COMPLETED' ? 'green' : 'blue'}>{job.status}</Badge>
+                                    <span className="text-xs text-silver-400">{job.dateBooked}</span>
+                                </div>
+                                <h3 className="font-bold text-lg mb-1 text-silver-900 dark:text-white">{job.deviceType}</h3>
+                                <p className="text-sm text-silver-500 mb-4 line-clamp-2">{job.issueDescription}</p>
+                                
+                                {job.aiDiagnosis && (
+                                    <div className="bg-silver-50 dark:bg-silver-800 p-3 rounded-lg text-xs mb-4 text-silver-600 dark:text-silver-300">
+                                        <strong>AI Note:</strong> {job.aiDiagnosis}
+                                    </div>
+                                )}
+
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="text-xs font-bold text-silver-400 uppercase tracking-wider mb-1 block">Update Status</label>
+                                        <select 
+                                            className="w-full text-sm bg-white dark:bg-silver-950 border border-silver-200 dark:border-silver-700 rounded-lg p-2"
+                                            value={job.status}
+                                            onChange={(e) => handleUpdateRepairStatus(job.id, e.target.value as any)}
+                                        >
+                                            <option value="PENDING">Pending</option>
+                                            <option value="DIAGNOSING">Diagnosing</option>
+                                            <option value="IN_PROGRESS">In Progress</option>
+                                            <option value="COMPLETED">Completed</option>
+                                            <option value="DELIVERED">Delivered</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" className="flex-1">
+                                            <MessageCircle className="w-4 h-4 mr-1" /> Chat
+                                        </Button>
+                                        <Button size="sm" className="flex-1">
+                                            Details
+                                        </Button>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderFixers = () => {
+        const fixers = users.filter(u => u.role === 'FIXER');
+        const customers = users.filter(u => u.role === 'CUSTOMER');
+
+        return (
+            <div className="space-y-6 animate-fade-in">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h2 className="text-xl font-bold text-silver-900 dark:text-white">Fixer Management</h2>
+                        <p className="text-silver-500 text-sm">Manage technician access and assignments.</p>
+                    </div>
+                    <Button className="flex items-center gap-2" onClick={() => setIsRecruitModalOpen(true)}>
+                        <Plus className="w-4 h-4" /> Recruit New Fixer
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {fixers.map(fixer => (
+                        <Card key={fixer.id} className="p-6 flex flex-col items-center text-center relative overflow-hidden group hover:shadow-lg transition-shadow">
+                            <div className={`absolute top-0 left-0 w-full h-1 ${fixer.availabilityStatus === 'ONLINE' ? 'bg-green-500' : fixer.availabilityStatus === 'BUSY' ? 'bg-red-500' : 'bg-silver-300'}`}></div>
+                            <div className="w-20 h-20 rounded-full bg-silver-100 dark:bg-silver-800 mb-4 p-1 border-2 border-silver-100 dark:border-silver-700 relative">
+                                <img src={fixer.avatar} alt={fixer.name} className="w-full h-full rounded-full object-cover" />
+                                <div className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-white dark:border-silver-900 ${fixer.availabilityStatus === 'ONLINE' ? 'bg-green-500' : fixer.availabilityStatus === 'BUSY' ? 'bg-red-500' : 'bg-silver-400'}`}></div>
+                            </div>
+                            <h3 className="font-bold text-lg text-silver-900 dark:text-white">{fixer.name}</h3>
+                            <p className="text-silver-500 text-sm mb-4">{fixer.email}</p>
+                            
+                            <div className="flex items-center gap-2 mb-6 bg-silver-50 dark:bg-silver-800 px-3 py-1 rounded-full">
+                                <span className="text-xs font-bold uppercase tracking-wider text-silver-600 dark:text-silver-400">
+                                    {fixer.availabilityStatus || 'OFFLINE'}
+                                </span>
+                            </div>
+
+                            <div className="w-full grid grid-cols-2 gap-2 mb-6 text-sm">
+                                <div className="bg-silver-50 dark:bg-silver-800 p-2 rounded-lg">
+                                    <p className="font-bold text-silver-900 dark:text-white">12</p>
+                                    <p className="text-silver-500 text-xs">Jobs Done</p>
+                                </div>
+                                <div className="bg-silver-50 dark:bg-silver-800 p-2 rounded-lg">
+                                    <p className="font-bold text-silver-900 dark:text-white">4.9</p>
+                                    <p className="text-silver-500 text-xs">Rating</p>
+                                </div>
+                            </div>
+
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900/30"
+                                onClick={() => handleUpdateUserRole(fixer.id, 'CUSTOMER')}
+                            >
+                                Revoke Fixer Access
+                            </Button>
+                        </Card>
+                    ))}
+                    
+                    {fixers.length === 0 && (
+                        <div className="col-span-full text-center py-12 text-silver-500 bg-silver-50 dark:bg-silver-800/50 rounded-xl border-dashed border-2 border-silver-200 dark:border-silver-700">
+                            <Wrench className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                            <p className="mb-4">No active fixers found.</p>
+                            <Button variant="outline" onClick={() => setIsRecruitModalOpen(true)}>Recruit from Customers</Button>
+                        </div>
+                    )}
+                </div>
+
+                {isRecruitModalOpen && (
+                    <Modal title="Grant Fixer Access" onClose={() => setIsRecruitModalOpen(false)}>
+                        <div className="space-y-4">
+                            <p className="text-sm text-silver-500">Select a customer to upgrade to a Technician/Fixer role. This will grant them access to the Fixer Dashboard.</p>
+                            <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                {customers.map(customer => (
+                                    <div key={customer.id} className="flex items-center justify-between p-3 rounded-lg border border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <img src={customer.avatar} className="w-10 h-10 rounded-full border border-silver-200 dark:border-silver-600" alt="" />
+                                            <div>
+                                                <p className="text-sm font-bold text-silver-900 dark:text-white">{customer.name}</p>
+                                                <p className="text-xs text-silver-500">{customer.email}</p>
+                                            </div>
+                                        </div>
+                                        <Button 
+                                            size="sm" 
+                                            className="bg-blucell-600 hover:bg-blucell-700 text-white"
+                                            onClick={() => {
+                                                handleUpdateUserRole(customer.id, 'FIXER');
+                                                setIsRecruitModalOpen(false);
+                                            }}
+                                        >
+                                            Turn On Fixer Page
+                                        </Button>
+                                    </div>
+                                ))}
+                                {customers.length === 0 && (
+                                    <p className="text-center text-sm text-silver-400 py-8 bg-silver-50 dark:bg-silver-900 rounded-lg">No eligible customers found.</p>
+                                )}
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+            </div>
+        );
+    };
+
+    const renderCms = () => (
+        <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-10">
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-silver-900 dark:text-white">Website Editor</h2>
+                <Button onClick={saveCms} className="flex items-center gap-2">
+                    <Save className="w-4 h-4" /> Save Changes
+                </Button>
+            </div>
+
+            {/* Contact Info Section */}
+            <Card className="p-6">
+                <h3 className="text-lg font-bold mb-4 text-silver-900 dark:text-white border-b border-silver-100 dark:border-silver-800 pb-2">Contact Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input 
+                        label="Phone Number" 
+                        value={localContactInfo.phone} 
+                        onChange={(e) => setLocalContactInfo({...localContactInfo, phone: e.target.value})} 
+                    />
+                    <Input 
+                        label="Email Address" 
+                        value={localContactInfo.email} 
+                        onChange={(e) => setLocalContactInfo({...localContactInfo, email: e.target.value})} 
+                    />
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Address</label>
+                        <textarea 
+                            className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm h-20 focus:outline-none focus:ring-2 focus:ring-blucell-500 text-silver-900 dark:text-silver-100"
+                            value={localContactInfo.address} 
+                            onChange={(e) => setLocalContactInfo({...localContactInfo, address: e.target.value})}
+                        />
+                    </div>
+                </div>
+            </Card>
+
+            {/* Hero Section */}
+            <Card className="p-6">
+                <h3 className="text-lg font-bold mb-4 text-silver-900 dark:text-white border-b border-silver-100 dark:border-silver-800 pb-2">Hero Section</h3>
+                <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                        <Input label="Title Prefix" value={cmsConfig.hero.titlePrefix} onChange={(e) => handleCmsChange('hero', 'titlePrefix', e.target.value)} />
+                        <Input label="Title Highlight (Gradient)" value={cmsConfig.hero.titleHighlight} onChange={(e) => handleCmsChange('hero', 'titleHighlight', e.target.value)} />
+                        <Input label="Title Suffix" value={cmsConfig.hero.titleSuffix} onChange={(e) => handleCmsChange('hero', 'titleSuffix', e.target.value)} />
+                    </div>
+                    <Input label="Subtitle" value={cmsConfig.hero.subtitle} onChange={(e) => handleCmsChange('hero', 'subtitle', e.target.value)} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input label="Primary CTA Text" value={cmsConfig.hero.ctaPrimary} onChange={(e) => handleCmsChange('hero', 'ctaPrimary', e.target.value)} />
+                        <Input label="Secondary CTA Text" value={cmsConfig.hero.ctaSecondary} onChange={(e) => handleCmsChange('hero', 'ctaSecondary', e.target.value)} />
+                    </div>
+                    <ImageUploader label="Foreground Image (e.g. Phone)" value={cmsConfig.hero.imageForeground} onChange={handleCmsImageUpload('hero', 'imageForeground')} />
+                    <ImageUploader label="Background Image (e.g. Console)" value={cmsConfig.hero.imageBackground} onChange={handleCmsImageUpload('hero', 'imageBackground')} />
+                </div>
+            </Card>
+
+            {/* Features Section */}
+            <Card className="p-6">
+                <h3 className="text-lg font-bold mb-4 text-silver-900 dark:text-white border-b border-silver-100 dark:border-silver-800 pb-2">Features Section</h3>
+                <div className="space-y-6">
+                    {cmsConfig.features.map((feature, idx) => (
+                        <div key={idx} className="bg-silver-50 dark:bg-silver-900 p-4 rounded-lg">
+                            <h4 className="text-sm font-bold mb-3 text-silver-500">Feature {idx + 1}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Input label="Title" value={feature.title} onChange={(e) => handleCmsChange('features', 'title', e.target.value, idx, 'title')} />
+                                <Input label="Description" value={feature.description} onChange={(e) => handleCmsChange('features', 'description', e.target.value, idx, 'description')} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            {/* Trending Section */}
+            <Card className="p-6">
+                <h3 className="text-lg font-bold mb-4 text-silver-900 dark:text-white border-b border-silver-100 dark:border-silver-800 pb-2">Trending Section</h3>
+                <div className="space-y-4 mb-6">
+                    <Input label="Section Title" value={cmsConfig.trending.sectionTitle} onChange={(e) => handleCmsChange('trending', 'sectionTitle', e.target.value)} />
+                    <Input label="Section Subtitle" value={cmsConfig.trending.sectionSubtitle} onChange={(e) => handleCmsChange('trending', 'sectionSubtitle', e.target.value)} />
+                </div>
+                <div className="space-y-6">
+                    {cmsConfig.trending.items.map((item, idx) => (
+                        <div key={idx} className="bg-silver-50 dark:bg-silver-900 p-4 rounded-lg border border-silver-200 dark:border-silver-800">
+                            <h4 className="text-sm font-bold mb-3 text-silver-500">Item {idx + 1} {idx === 0 ? '(Hero Large)' : idx === 1 ? '(Wide Top)' : '(Small Box)'}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <Input label="Title" value={item.title} onChange={(e) => handleCmsChange('trending', 'items', e.target.value, idx, 'title')} />
+                                <Input label="Badge (Optional)" value={item.badge || ''} onChange={(e) => handleCmsChange('trending', 'items', e.target.value, idx, 'badge')} />
+                            </div>
+                            <Input label="Description" value={item.description} onChange={(e) => handleCmsChange('trending', 'items', e.target.value, idx, 'description')} className="mb-4" />
+                            <ImageUploader label="Item Image" value={item.image} onChange={handleCmsImageUpload('trending', 'image', idx)} />
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            {/* Bottom CTA */}
+            <Card className="p-6">
+                <h3 className="text-lg font-bold mb-4 text-silver-900 dark:text-white border-b border-silver-100 dark:border-silver-800 pb-2">Bottom CTA</h3>
+                <div className="space-y-4">
+                    <Input label="Title" value={cmsConfig.ctaBottom.title} onChange={(e) => handleCmsChange('ctaBottom', 'title', e.target.value)} />
+                    <div>
+                        <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Description</label>
+                        <textarea 
+                            className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm h-24 focus:outline-none focus:ring-2 focus:ring-blucell-500 text-silver-900 dark:text-silver-100"
+                            value={cmsConfig.ctaBottom.description} 
+                            onChange={(e) => handleCmsChange('ctaBottom', 'description', e.target.value)}
+                        />
+                    </div>
+                    <Input label="Button Text" value={cmsConfig.ctaBottom.buttonText} onChange={(e) => handleCmsChange('ctaBottom', 'buttonText', e.target.value)} />
+                </div>
+            </Card>
+        </div>
+    );
+
+    const renderInquiries = () => (
+        <div className="space-y-6 animate-fade-in">
+            <h2 className="text-xl font-bold text-silver-900 dark:text-white mb-6">Inquiries & Contact Form Messages</h2>
+            
+            {contactMessages.length === 0 ? (
+                <Card className="p-12 text-center text-silver-500 border-dashed border-2">
+                    <Mail className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                    <p>No messages received yet.</p>
+                </Card>
+            ) : (
+                <div className="space-y-4">
+                    {contactMessages.map((msg) => (
+                        <Card key={msg.id} className="p-6 transition-all hover:shadow-md border-l-4 border-l-blucell-500">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 className="font-bold text-lg text-silver-900 dark:text-white">{msg.subject}</h3>
+                                    <p className="text-sm text-silver-500">
+                                        From: <span className="font-medium text-silver-700 dark:text-silver-300">{msg.name}</span> ({msg.email})
+                                    </p>
+                                </div>
+                                <span className="text-xs text-silver-400 whitespace-nowrap">
+                                    {msg.date.toLocaleDateString()} {msg.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </span>
+                            </div>
+                            <div className="bg-silver-50 dark:bg-silver-900 p-4 rounded-lg text-sm text-silver-700 dark:text-silver-300 leading-relaxed mt-4">
+                                {msg.message}
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <Button size="sm" variant="outline" onClick={() => window.open(`mailto:${msg.email}?subject=Re: ${msg.subject}`)}>Reply via Email</Button>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+            )}
         </div>
     );
 
@@ -694,237 +1219,6 @@ const AdminDashboard = ({
          </div>
     );
 
-    const renderUsers = () => (
-         <div className="space-y-6 animate-fade-in">
-             <div className="flex flex-col sm:flex-row justify-between gap-4">
-                 <div className="relative w-full max-w-md">
-                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver-400" />
-                     <Input 
-                        placeholder="Search users..." 
-                        className="pl-10" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                     />
-                 </div>
-                 <Button className="flex items-center gap-2" onClick={() => setIsAddUserModalOpen(true)}>
-                     <Plus className="w-4 h-4" /> Add User
-                 </Button>
-             </div>
-             
-             <Card className="overflow-hidden">
-                 <div className="overflow-x-auto">
-                     <table className="w-full text-left text-sm">
-                         <thead className="bg-silver-100 dark:bg-silver-800/50 text-silver-500 border-b border-silver-200 dark:border-silver-800">
-                             <tr>
-                                 <th className="p-4 font-medium">User Profile</th>
-                                 <th className="p-4 font-medium">Role</th>
-                                 <th className="p-4 font-medium">Status</th>
-                                 <th className="p-4 font-medium text-right">Actions</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
-                             {filteredUsers.map(u => (
-                                 <tr key={u.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                     <td className="p-4 flex items-center gap-3">
-                                         <img src={u.avatar} className="w-9 h-9 rounded-full border border-silver-200 dark:border-silver-700" alt="" />
-                                         <div>
-                                            <p className="font-medium text-silver-900 dark:text-white">{u.name}</p>
-                                            <p className="text-xs text-silver-500">{u.email}</p>
-                                         </div>
-                                     </td>
-                                     <td className="p-4">
-                                         <Badge color={u.role === 'ADMIN' ? 'red' : u.role === 'FIXER' ? 'blue' : 'green'}>{u.role}</Badge>
-                                     </td>
-                                     <td className="p-4"><span className="flex items-center gap-1.5 text-xs font-medium text-green-600"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Active</span></td>
-                                     <td className="p-4 text-right">
-                                         <Button size="sm" variant="ghost" onClick={() => setEditingUser(u)}>
-                                            <MoreHorizontal className="w-4 h-4" />
-                                         </Button>
-                                     </td>
-                                 </tr>
-                             ))}
-                         </tbody>
-                     </table>
-                 </div>
-             </Card>
-
-             {/* Add User Modal */}
-             {isAddUserModalOpen && (
-                 <Modal title="Add New User" onClose={() => setIsAddUserModalOpen(false)}>
-                     <form onSubmit={handleAddUser} className="space-y-4">
-                         <Input 
-                            label="Full Name" 
-                            placeholder="John Doe" 
-                            value={newUserData.name} 
-                            onChange={(e) => setNewUserData({...newUserData, name: e.target.value})}
-                            required
-                         />
-                         <Input 
-                            label="Email Address" 
-                            type="email" 
-                            placeholder="john@example.com" 
-                            value={newUserData.email} 
-                            onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
-                            required
-                         />
-                         <div>
-                             <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Role</label>
-                             <select 
-                                className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blucell-500 text-silver-900 dark:text-silver-100"
-                                value={newUserData.role}
-                                onChange={(e) => setNewUserData({...newUserData, role: e.target.value as UserRole})}
-                             >
-                                 <option value="CUSTOMER">Customer</option>
-                                 <option value="FIXER">Technician/Fixer</option>
-                                 <option value="ADMIN">Admin</option>
-                             </select>
-                         </div>
-                         <div className="flex justify-end gap-2 pt-4">
-                             <Button type="button" variant="ghost" onClick={() => setIsAddUserModalOpen(false)}>Cancel</Button>
-                             <Button type="submit">Create User</Button>
-                         </div>
-                     </form>
-                 </Modal>
-             )}
-
-            {editingUser && (
-                <Modal title="Manage User" onClose={() => setEditingUser(null)}>
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-4 mb-6">
-                            <img src={editingUser.avatar} className="w-16 h-16 rounded-full" alt="" />
-                            <div>
-                                <h4 className="font-bold text-lg text-silver-900 dark:text-white">{editingUser.name}</h4>
-                                <p className="text-silver-500">{editingUser.email}</p>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-2">Change Role</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {(['CUSTOMER', 'FIXER', 'ADMIN'] as UserRole[]).map(role => (
-                                    <button
-                                        key={role}
-                                        onClick={() => handleUpdateUserRole(editingUser.id, role)}
-                                        className={`p-2 rounded-lg border text-sm font-medium transition-colors ${
-                                            editingUser.role === role 
-                                            ? 'bg-blucell-50 border-blucell-500 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-300' 
-                                            : 'border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800 text-silver-700 dark:text-silver-300'
-                                        }`}
-                                    >
-                                        {role}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="pt-4 border-t border-silver-100 dark:border-silver-800">
-                             <Button variant="danger" className="w-full">Deactivate Account</Button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-         </div>
-    );
-
-    const renderOrders = () => (
-         <div className="space-y-6 animate-fade-in">
-             <div className="flex justify-between items-center">
-                 <h2 className="text-xl font-bold text-silver-900 dark:text-white">All Orders</h2>
-                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                        <Download className="w-4 h-4 mr-2" /> Export CSV
-                    </Button>
-                    <Button variant="outline" size="sm">
-                        <Filter className="w-4 h-4 mr-2" /> Filter
-                    </Button>
-                 </div>
-             </div>
-             <Card className="overflow-hidden">
-                 <div className="overflow-x-auto">
-                     <table className="w-full text-left text-sm">
-                         <thead className="bg-silver-100 dark:bg-silver-800/50 text-silver-500 border-b border-silver-200 dark:border-silver-800">
-                             <tr>
-                                 <th className="p-4 font-medium">Order ID</th>
-                                 <th className="p-4 font-medium">Items</th>
-                                 <th className="p-4 font-medium">Total</th>
-                                 <th className="p-4 font-medium">Date</th>
-                                 <th className="p-4 font-medium">Status</th>
-                                 <th className="p-4 font-medium text-right">Actions</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
-                             {orders.map(order => (
-                                 <tr key={order.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                     <td className="p-4 font-medium text-silver-900 dark:text-white">{order.id}</td>
-                                     <td className="p-4 text-silver-500 max-w-xs truncate">
-                                        {order.items.map(i => i.productName).join(', ')}
-                                     </td>
-                                     <td className="p-4 font-bold text-silver-900 dark:text-white">${order.total.toLocaleString()}</td>
-                                     <td className="p-4 text-silver-500">{new Date(order.date).toLocaleDateString()}</td>
-                                     <td className="p-4">
-                                         <Badge color={order.status === 'DELIVERED' ? 'green' : order.status === 'SHIPPED' ? 'blue' : 'yellow'}>{order.status}</Badge>
-                                     </td>
-                                     <td className="p-4 text-right">
-                                         <Button size="sm" variant="ghost" onClick={() => setViewingOrder(order)}>Details</Button>
-                                     </td>
-                                 </tr>
-                             ))}
-                         </tbody>
-                     </table>
-                 </div>
-             </Card>
-
-            {viewingOrder && (
-                <Modal title={`Order Details: ${viewingOrder.id}`} onClose={() => setViewingOrder(null)}>
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center bg-silver-100 dark:bg-silver-800/50 p-4 rounded-lg">
-                            <div>
-                                <p className="text-sm text-silver-500">Total Amount</p>
-                                <p className="text-2xl font-bold text-silver-900 dark:text-white">${viewingOrder.total.toLocaleString()}</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-silver-500 text-right">Order Date</p>
-                                <p className="font-medium text-silver-900 dark:text-white">{new Date(viewingOrder.date).toLocaleDateString()}</p>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="font-bold mb-3 text-silver-900 dark:text-white">Items</h4>
-                            <div className="space-y-3">
-                                {viewingOrder.items.map((item, idx) => (
-                                    <div key={idx} className="flex items-center gap-3">
-                                        <img src={item.image} className="w-12 h-12 rounded bg-silver-100 object-cover" alt="" />
-                                        <div className="flex-1">
-                                            <p className="font-medium text-sm text-silver-900 dark:text-white">{item.productName}</p>
-                                            <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="font-bold mb-3 text-silver-900 dark:text-white">Update Status</h4>
-                            <div className="grid grid-cols-3 gap-2">
-                                {(['PROCESSING', 'SHIPPED', 'DELIVERED'] as const).map(status => (
-                                    <button
-                                        key={status}
-                                        onClick={() => handleUpdateOrderStatus(viewingOrder.id, status)}
-                                        className={`p-2 rounded-lg border text-xs font-bold transition-colors ${
-                                            viewingOrder.status === status 
-                                            ? status === 'DELIVERED' ? 'bg-green-50 border-green-500 text-green-700' : 'bg-blue-50 border-blue-500 text-blue-700'
-                                            : 'border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800 text-silver-700 dark:text-silver-300'
-                                        }`}
-                                    >
-                                        {status}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-         </div>
-    );
-
     const renderSettings = () => (
         <div className="space-y-6 animate-fade-in">
             <Card className="p-8 max-w-2xl">
@@ -996,6 +1290,242 @@ const AdminDashboard = ({
         </div>
     );
 
+    const renderUsers = () => (
+        <div className="space-y-6 animate-fade-in">
+             <div className="flex flex-col sm:flex-row justify-between gap-4">
+                 <div className="relative w-full max-w-md">
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver-400" />
+                     <Input 
+                        placeholder="Search users..." 
+                        className="pl-10" 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                 </div>
+                 <Button className="flex items-center gap-2" onClick={() => setIsAddUserModalOpen(true)}>
+                     <Plus className="w-4 h-4" /> Add User
+                 </Button>
+             </div>
+             
+             <Card className="overflow-hidden">
+                 <div className="overflow-x-auto">
+                     <table className="w-full text-left text-sm">
+                         <thead className="bg-silver-100 dark:bg-silver-800/50 text-silver-500 border-b border-silver-200 dark:border-silver-800">
+                             <tr>
+                                 <th className="p-4 font-medium">User</th>
+                                 <th className="p-4 font-medium">Role</th>
+                                 <th className="p-4 font-medium">Status</th>
+                                 <th className="p-4 font-medium text-right">Actions</th>
+                             </tr>
+                         </thead>
+                         <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                             {filteredUsers.map(u => (
+                                 <tr key={u.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
+                                     <td className="p-4 flex items-center gap-3">
+                                         <div className="w-10 h-10 rounded-full bg-silver-100 dark:bg-silver-800 flex items-center justify-center overflow-hidden">
+                                             <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                                         </div>
+                                         <div className="flex flex-col">
+                                            <span className="font-medium text-silver-900 dark:text-white">{u.name}</span>
+                                            <span className="text-xs text-silver-500">{u.email}</span>
+                                         </div>
+                                     </td>
+                                     <td className="p-4">
+                                         <Badge color={u.role === 'ADMIN' ? 'red' : u.role === 'FIXER' ? 'blue' : 'green'}>
+                                             {u.role}
+                                         </Badge>
+                                     </td>
+                                     <td className="p-4">
+                                         {u.availabilityStatus ? (
+                                             <div className="flex items-center gap-2">
+                                                 <StatusIndicator status={u.availabilityStatus} />
+                                                 <span className="text-silver-600 dark:text-silver-400 capitalize">{u.availabilityStatus.toLowerCase()}</span>
+                                             </div>
+                                         ) : (
+                                             <span className="text-silver-400">-</span>
+                                         )}
+                                     </td>
+                                     <td className="p-4 text-right">
+                                         <Button size="sm" variant="ghost" onClick={() => setEditingUser(u)}>
+                                             <MoreHorizontal className="w-4 h-4" />
+                                         </Button>
+                                     </td>
+                                 </tr>
+                             ))}
+                         </tbody>
+                     </table>
+                 </div>
+             </Card>
+
+             {isAddUserModalOpen && (
+                <Modal title="Add New User" onClose={() => setIsAddUserModalOpen(false)}>
+                    <form onSubmit={handleAddUser} className="space-y-4">
+                        <Input 
+                            label="Full Name" 
+                            value={newUserData.name} 
+                            onChange={e => setNewUserData({...newUserData, name: e.target.value})}
+                            required
+                        />
+                        <Input 
+                            label="Email Address" 
+                            type="email"
+                            value={newUserData.email} 
+                            onChange={e => setNewUserData({...newUserData, email: e.target.value})}
+                            required
+                        />
+                        <div>
+                            <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Role</label>
+                            <select 
+                                className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blucell-500 text-silver-900 dark:text-silver-100"
+                                value={newUserData.role}
+                                onChange={e => setNewUserData({...newUserData, role: e.target.value as UserRole})}
+                            >
+                                <option value="CUSTOMER">Customer</option>
+                                <option value="FIXER">Fixer</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setIsAddUserModalOpen(false)}>Cancel</Button>
+                            <Button type="submit">Create User</Button>
+                        </div>
+                    </form>
+                </Modal>
+             )}
+
+             {editingUser && (
+                <Modal title={`Edit User: ${editingUser.name}`} onClose={() => setEditingUser(null)}>
+                    <div className="space-y-4">
+                        <p className="text-sm text-silver-500">Change role for this user.</p>
+                        <div className="grid grid-cols-3 gap-3">
+                            {['CUSTOMER', 'FIXER', 'ADMIN'].map((role) => (
+                                <button
+                                    key={role}
+                                    onClick={() => handleUpdateUserRole(editingUser.id, role as UserRole)}
+                                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
+                                        editingUser.role === role 
+                                        ? 'bg-blucell-600 text-white border-blucell-600' 
+                                        : 'border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800'
+                                    }`}
+                                >
+                                    {role}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </Modal>
+             )}
+        </div>
+    );
+
+    const renderOrders = () => (
+        <div className="space-y-6 animate-fade-in">
+             <div className="flex justify-between items-center">
+                 <h2 className="text-xl font-bold text-silver-900 dark:text-white">Order Management</h2>
+                 <Button variant="outline" onClick={handleExportCSV} className="flex items-center gap-2">
+                     <Download className="w-4 h-4" /> Export CSV
+                 </Button>
+             </div>
+             
+             <Card className="overflow-hidden">
+                 <div className="overflow-x-auto">
+                     <table className="w-full text-left text-sm">
+                         <thead className="bg-silver-100 dark:bg-silver-800/50 text-silver-500 border-b border-silver-200 dark:border-silver-800">
+                             <tr>
+                                 <th className="p-4 font-medium">Order ID</th>
+                                 <th className="p-4 font-medium">Date</th>
+                                 <th className="p-4 font-medium">Items</th>
+                                 <th className="p-4 font-medium">Total</th>
+                                 <th className="p-4 font-medium">Status</th>
+                                 <th className="p-4 font-medium text-right">Actions</th>
+                             </tr>
+                         </thead>
+                         <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                             {orders.map(order => (
+                                 <tr key={order.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
+                                     <td className="p-4 font-medium">{order.id}</td>
+                                     <td className="p-4 text-silver-500">{order.date}</td>
+                                     <td className="p-4">
+                                         <div className="flex items-center gap-2">
+                                             {order.items.slice(0, 3).map((item, i) => (
+                                                 <img key={i} src={item.image} className="w-8 h-8 rounded object-cover border border-silver-200 dark:border-silver-700" title={item.productName} alt="" />
+                                             ))}
+                                             {order.items.length > 3 && (
+                                                 <span className="text-xs text-silver-400">+{order.items.length - 3}</span>
+                                             )}
+                                         </div>
+                                     </td>
+                                     <td className="p-4 font-bold">{formatPrice(order.total)}</td>
+                                     <td className="p-4">
+                                         <Badge color={order.status === 'DELIVERED' ? 'green' : order.status === 'SHIPPED' ? 'blue' : 'yellow'}>
+                                             {order.status}
+                                         </Badge>
+                                     </td>
+                                     <td className="p-4 text-right">
+                                         <Button size="sm" variant="ghost" onClick={() => setViewingOrder(order)}>
+                                             <Eye className="w-4 h-4" />
+                                         </Button>
+                                     </td>
+                                 </tr>
+                             ))}
+                         </tbody>
+                     </table>
+                 </div>
+             </Card>
+
+             {viewingOrder && (
+                <Modal title={`Order Details: ${viewingOrder.id}`} onClose={() => setViewingOrder(null)}>
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center pb-4 border-b border-silver-100 dark:border-silver-800">
+                            <div>
+                                <p className="text-sm text-silver-500">Order Date</p>
+                                <p className="font-medium">{viewingOrder.date}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-silver-500">Total Amount</p>
+                                <p className="font-bold text-lg text-blucell-600">{formatPrice(viewingOrder.total)}</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold mb-3">Order Items</h4>
+                            <div className="space-y-3">
+                                {viewingOrder.items.map((item, i) => (
+                                    <div key={i} className="flex gap-4 items-center">
+                                        <img src={item.image} className="w-12 h-12 rounded object-cover bg-silver-100" alt="" />
+                                        <div className="flex-1">
+                                            <p className="font-medium text-sm">{item.productName}</p>
+                                            <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold mb-3">Update Status</h4>
+                            <div className="flex gap-2">
+                                {['PROCESSING', 'SHIPPED', 'DELIVERED'].map((status) => (
+                                    <button
+                                        key={status}
+                                        onClick={() => handleUpdateOrderStatus(viewingOrder.id, status as any)}
+                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
+                                            viewingOrder.status === status
+                                            ? 'bg-blucell-600 text-white'
+                                            : 'bg-silver-100 dark:bg-silver-800 text-silver-600 dark:text-silver-400 hover:bg-silver-200 dark:hover:bg-silver-700'
+                                        }`}
+                                    >
+                                        {status}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
+             )}
+        </div>
+    );
+
     return (
         <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] -m-4 md:-m-8">
             {/* Sidebar */}
@@ -1006,10 +1536,15 @@ const AdminDashboard = ({
                 </div>
                 
                 <SidebarItem id="overview" icon={LayoutDashboard} label="Overview" />
+                <SidebarItem id="client_view" icon={Layout} label="My Dashboard" />
+                <SidebarItem id="technician_view" icon={Wrench} label="Technician Workspace" />
+                <SidebarItem id="fixers" icon={Briefcase} label="Manage Fixers" />
                 <SidebarItem id="products" icon={Package} label="Products" />
                 <SidebarItem id="users" icon={Users} label="Users" />
                 <SidebarItem id="orders" icon={ShoppingBag} label="Orders" />
+                <SidebarItem id="inquiries" icon={Mail} label="Inquiries" />
                 <SidebarItem id="support" icon={MessageCircle} label="Support" />
+                <SidebarItem id="cms" icon={Globe} label="Website Editor" />
                 
                 <div className="mt-auto pt-4 border-t border-silver-100 dark:border-silver-800">
                     <SidebarItem id="settings" icon={Settings} label="Settings" />
@@ -1020,376 +1555,25 @@ const AdminDashboard = ({
             <div className="flex-1 p-6 md:p-10 overflow-y-auto bg-transparent">
                 <div className="max-w-7xl mx-auto">
                     <div className="mb-8">
-                        <h1 className="text-2xl font-bold text-silver-900 dark:text-white capitalize">{activeTab}</h1>
+                        <h1 className="text-2xl font-bold text-silver-900 dark:text-white capitalize">
+                            {activeTab === 'client_view' ? 'Client View' : activeTab === 'technician_view' ? 'Technician Workspace' : activeTab}
+                        </h1>
                         <p className="text-silver-500">Welcome back, {user.name}. Here's what's happening today.</p>
                     </div>
                     
                     {activeTab === 'overview' && renderOverview()}
+                    {activeTab === 'client_view' && <StandardDashboard user={user} onUpdateUser={onUpdateUser} formatPrice={formatPrice} />}
+                    {activeTab === 'technician_view' && renderTechnicianWorkspace()}
+                    {activeTab === 'fixers' && renderFixers()}
                     {activeTab === 'products' && renderProducts()}
                     {activeTab === 'users' && renderUsers()}
                     {activeTab === 'orders' && renderOrders()}
+                    {activeTab === 'inquiries' && renderInquiries()}
                     {activeTab === 'support' && renderSupport()}
+                    {activeTab === 'cms' && renderCms()}
                     {activeTab === 'settings' && renderSettings()}
                 </div>
             </div>
-        </div>
-    );
-};
-
-// --- Customer/Fixer Shared View Wrapper ---
-
-const StandardDashboard = ({ user, onUpdateUser, formatPrice = (p) => `$${p}` }: { user: User, onUpdateUser: (data: Partial<User>) => void, formatPrice?: (p: number) => string }) => {
-    const [activeTab, setActiveTab] = useState('overview');
-    const [fixerRepairs, setFixerRepairs] = useState(MOCK_REPAIRS);
-    const [searchParams] = useSearchParams();
-    const [selectedRepairForChat, setSelectedRepairForChat] = useState<RepairJob | null>(null);
-
-    // Check for chat params on mount
-    useEffect(() => {
-        const chatRepairId = searchParams.get('chatRepairId');
-        if (chatRepairId) {
-            // Find existing or mock new one if from recent booking
-            const repair = MOCK_REPAIRS.find(r => r.id === chatRepairId) || {
-                id: chatRepairId,
-                deviceType: 'New Repair Booking',
-                fixerId: 'f1', // Default to Mike Ross
-                status: 'PENDING',
-                issueDescription: 'Newly booked repair'
-            } as RepairJob;
-            
-            setSelectedRepairForChat(repair);
-        }
-    }, [searchParams]);
-
-    const handleStatusUpdate = (id: string, newStatus: any) => {
-        setFixerRepairs(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
-    };
-
-    const handleAvailabilityChange = (newStatus: AvailabilityStatus) => {
-        onUpdateUser({ availabilityStatus: newStatus });
-    };
-
-    const openChat = (repair: RepairJob) => {
-        setSelectedRepairForChat(repair);
-    };
-
-    const renderFixerView = () => (
-        <div className="space-y-6 animate-fade-in-up">
-           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-             <div>
-                <h2 className="text-2xl font-bold text-silver-900 dark:text-white">Assigned Jobs</h2>
-                <p className="text-silver-500">Manage your active repair tickets.</p>
-             </div>
-             <div className="flex items-center gap-3 bg-silver-surface-light dark:bg-silver-surface-dark p-2 rounded-lg border border-silver-200 dark:border-silver-800">
-                <span className="text-sm font-medium pl-2 text-silver-900 dark:text-silver-100">Status:</span>
-                <div className="flex gap-1">
-                    {(['ONLINE', 'BUSY', 'OFFLINE'] as const).map(status => (
-                        <button
-                            key={status}
-                            onClick={() => handleAvailabilityChange(status)}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-                                user.availabilityStatus === status || (!user.availabilityStatus && status === 'ONLINE')
-                                ? status === 'ONLINE' ? 'bg-green-100 text-green-700' : status === 'BUSY' ? 'bg-red-100 text-red-700' : 'bg-silver-100 text-silver-700'
-                                : 'hover:bg-silver-50 dark:hover:bg-silver-800 text-silver-400'
-                            }`}
-                        >
-                            {status}
-                        </button>
-                    ))}
-                </div>
-             </div>
-          </div>
-    
-          <div className="grid gap-6">
-             {fixerRepairs.map(job => (
-                <Card key={job.id} className="p-6 border-l-4 border-l-blucell-600">
-                   <div className="flex flex-col md:flex-row justify-between gap-6">
-                      <div className="flex-1 space-y-4">
-                         <div className="flex items-start justify-between">
-                            <div>
-                               <h4 className="font-bold text-lg flex items-center gap-2 text-silver-900 dark:text-white">
-                                  {job.deviceType}
-                               </h4>
-                               <p className="text-sm text-silver-500 mt-1">Ticket #{job.id} • {new Date(job.dateBooked).toLocaleDateString()}</p>
-                            </div>
-                            <Badge color={job.status === 'COMPLETED' ? 'green' : job.status === 'IN_PROGRESS' ? 'blue' : 'yellow'}>{job.status}</Badge>
-                         </div>
-                         
-                         <div className="bg-silver-50 dark:bg-silver-900/50 p-4 rounded-lg">
-                            <p className="text-sm font-semibold text-silver-700 dark:text-silver-300 mb-1">Issue Description:</p>
-                            <p className="text-silver-600 dark:text-silver-400">{job.issueDescription}</p>
-                         </div>
-    
-                         {job.aiDiagnosis && (
-                            <div className="flex gap-2 text-sm text-blucell-600 bg-blucell-50 dark:bg-blucell-900/10 p-2 rounded border border-blucell-100 dark:border-blucell-900">
-                               <CheckCircle className="w-4 h-4 mt-0.5" />
-                               <span><strong>AI Note:</strong> {job.aiDiagnosis}</span>
-                            </div>
-                         )}
-                      </div>
-    
-                      <div className="flex flex-col gap-3 min-w-[200px] border-t md:border-t-0 md:border-l border-silver-100 dark:border-silver-800 pt-4 md:pt-0 md:pl-6">
-                         <p className="font-semibold text-sm mb-2 text-silver-900 dark:text-white">Actions</p>
-                         {job.status === 'PENDING' && (
-                            <Button size="sm" onClick={() => handleStatusUpdate(job.id, 'DIAGNOSING')}>Start Diagnostics</Button>
-                         )}
-                         {job.status === 'DIAGNOSING' && (
-                            <Button size="sm" onClick={() => handleStatusUpdate(job.id, 'IN_PROGRESS')}>Start Repair</Button>
-                         )}
-                         {job.status === 'IN_PROGRESS' && (
-                            <Button size="sm" onClick={() => handleStatusUpdate(job.id, 'COMPLETED')} className="bg-green-600 hover:bg-green-700">Mark Completed</Button>
-                         )}
-                         {job.status === 'COMPLETED' && (
-                            <Button size="sm" variant="outline" disabled>Awaiting Delivery</Button>
-                         )}
-                         <Button size="sm" variant="secondary" onClick={() => openChat(job)}>Contact Customer</Button>
-                         <Button size="sm" variant="ghost">View Full Details</Button>
-                      </div>
-                   </div>
-                </Card>
-             ))}
-          </div>
-        </div>
-    );
-
-    const renderCustomerOverview = () => (
-        <div className="space-y-6 animate-fade-in-up">
-          {/* Quick Status */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-6 bg-gradient-to-br from-blucell-600 to-blucell-800 text-white border-none">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-blucell-100 mb-1">Active Repair</p>
-                  <h3 className="text-2xl font-bold">iPhone 13 Pro Max</h3>
-                  <p className="text-sm text-blucell-200 mt-2">Status: Diagnosing</p>
-                </div>
-                <div className="p-3 bg-white/10 rounded-full">
-                  <Wrench className="w-6 h-6 text-white" />
-                </div>
-              </div>
-              <div className="mt-6">
-                <div className="w-full bg-black/20 rounded-full h-2">
-                  <div className="bg-white h-2 rounded-full" style={{ width: '40%' }}></div>
-                </div>
-                <div className="flex justify-between text-xs mt-2 text-blucell-100">
-                  <span>Received</span>
-                  <span>Diagnostics</span>
-                  <span className="opacity-50">Repair</span>
-                  <span className="opacity-50">Delivery</span>
-                </div>
-              </div>
-            </Card>
-    
-            <Card className="p-6">
-               <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-silver-500 dark:text-silver-400 mb-1">Next Delivery</p>
-                  <h3 className="text-2xl font-bold text-silver-900 dark:text-white">Sony XM5 Headphones</h3>
-                  <p className="text-sm text-silver-500 mt-2 flex items-center gap-1">
-                     <MapPin className="w-4 h-4" /> Arriving Tomorrow
-                  </p>
-                </div>
-                 <div className="p-3 bg-silver-100 dark:bg-silver-800 rounded-full">
-                  <Package className="w-6 h-6 text-silver-900 dark:text-white" />
-                </div>
-              </div>
-              <Button variant="outline" className="w-full mt-6">Track Order</Button>
-            </Card>
-          </div>
-    
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-                 <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-silver-900 dark:text-white">Repair History</h3>
-                    <Button variant="ghost" size="sm" onClick={() => setActiveTab('repairs')}>View All</Button>
-                 </div>
-                 {MOCK_REPAIRS.slice(0, 3).map(repair => (
-                     <Card key={repair.id} className="p-4 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('repairs')}>
-                        <div className="w-12 h-12 rounded-lg bg-silver-100 dark:bg-silver-800 flex items-center justify-center">
-                            <Wrench className="w-6 h-6 text-silver-600" />
-                        </div>
-                        <div className="flex-1">
-                            <h4 className="font-semibold text-silver-900 dark:text-white">{repair.deviceType}</h4>
-                            <p className="text-sm text-silver-500 line-clamp-1">{repair.issueDescription}</p>
-                        </div>
-                        <Badge color={repair.status === 'COMPLETED' ? 'green' : 'yellow'}>{repair.status}</Badge>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openChat(repair); }} className="rounded-full w-8 h-8 p-0">
-                            <MessageSquare className="w-4 h-4 text-blucell-600" />
-                        </Button>
-                     </Card>
-                 ))}
-            </div>
-            <div className="lg:col-span-1">
-                {/* Active Chat or General Support */}
-                <ChatWidget 
-                    isOpen={true}
-                    fixerName={MOCK_ALL_USERS.find(u => u.role === 'FIXER')?.name} 
-                    fixerStatus={MOCK_ALL_USERS.find(u => u.role === 'FIXER')?.availabilityStatus}
-                />
-            </div>
-          </div>
-        </div>
-    );
-
-    const renderCustomerRepairs = () => (
-        <div className="space-y-6 animate-fade-in-up">
-           <div className="flex justify-between items-center mb-6">
-             <div>
-                <h2 className="text-2xl font-bold text-silver-900 dark:text-white">My Repairs</h2>
-                <p className="text-silver-500">Manage ongoing and past repairs</p>
-             </div>
-             <Button onClick={() => window.location.hash = '#/repair'}>
-                <Wrench className="w-4 h-4 mr-2" /> Book Repair
-             </Button>
-          </div>
-    
-          <div className="grid gap-4">
-              {MOCK_REPAIRS.map(repair => {
-                const assignedFixer = MOCK_ALL_USERS.find(u => u.id === repair.fixerId);
-                return (
-                    <Card key={repair.id} className="p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
-                    <div className="w-16 h-16 rounded-xl bg-blucell-50 dark:bg-blucell-900/20 flex items-center justify-center shrink-0">
-                        <Smartphone className="w-8 h-8 text-blucell-600" />
-                    </div>
-                    <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                                <div>
-                                <h4 className="font-bold text-lg text-silver-900 dark:text-white">{repair.deviceType}</h4>
-                                <p className="text-sm text-silver-500">Booked on {new Date(repair.dateBooked).toLocaleDateString()}</p>
-                                </div>
-                                <Badge color={repair.status === 'COMPLETED' ? 'green' : 'yellow'}>{repair.status}</Badge>
-                        </div>
-                        <p className="text-silver-600 dark:text-silver-300 mb-4">{repair.issueDescription}</p>
-                        
-                        {repair.aiDiagnosis && (
-                            <div className="bg-silver-50 dark:bg-silver-800 p-3 rounded-lg mb-4 text-sm">
-                                <span className="font-bold text-blucell-600">AI Diagnosis:</span> {repair.aiDiagnosis}
-                            </div>
-                        )}
-    
-                        <div className="flex items-center gap-6 text-sm text-silver-500 border-t border-silver-100 dark:border-silver-800 pt-4">
-                            {repair.estimatedCost && (
-                                <span className="flex items-center gap-1">
-                                    <span className="font-medium text-silver-900 dark:text-white">Est. Cost:</span> {formatPrice(repair.estimatedCost)}
-                                </span>
-                            )}
-                            {assignedFixer && (
-                                <span className="flex items-center gap-1.5">
-                                    <span className="font-medium text-silver-900 dark:text-white">Technician:</span> 
-                                    {assignedFixer.name.split(' ')[0]}
-                                    <StatusIndicator status={assignedFixer.availabilityStatus || 'OFFLINE'} />
-                                    <span className="text-xs text-silver-400">({assignedFixer.availabilityStatus || 'Offline'})</span>
-                                </span>
-                            )}
-                             <span className="flex items-center gap-2 ml-auto">
-                                    <Button variant="secondary" size="sm" onClick={() => openChat(repair)}>
-                                        <MessageSquare className="w-4 h-4 mr-2" /> Chat
-                                    </Button>
-                                    <Button variant="outline" size="sm">View Details</Button>
-                                </span>
-                        </div>
-                    </div>
-                    </Card>
-                );
-              })}
-          </div>
-        </div>
-    );
-
-    const renderCustomerOrders = () => (
-        <div className="space-y-6 animate-fade-in-up">
-           <div className="flex justify-between items-center mb-6">
-             <div>
-                <h2 className="text-2xl font-bold text-silver-900 dark:text-white">Order History</h2>
-                <p className="text-silver-500">Track and view past purchases</p>
-             </div>
-             <Button onClick={() => window.location.hash = '#/shop'}>
-                <Package className="w-4 h-4 mr-2" /> Browse Shop
-             </Button>
-          </div>
-    
-          <div className="grid gap-4">
-            {MOCK_ORDERS.map(order => (
-                 <Card key={order.id} className="overflow-hidden">
-                    <div className="bg-silver-50 dark:bg-silver-800/50 p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-silver-100 dark:border-silver-800">
-                        <div className="flex gap-6 text-sm">
-                            <div>
-                                <p className="text-silver-500">Order Placed</p>
-                                <p className="font-semibold text-silver-900 dark:text-white">{new Date(order.date).toLocaleDateString()}</p>
-                            </div>
-                            <div>
-                                <p className="text-silver-500">Total</p>
-                                <p className="font-semibold text-silver-900 dark:text-white">{formatPrice(order.total)}</p>
-                            </div>
-                            <div>
-                                <p className="text-silver-500">Order #</p>
-                                <p className="font-semibold text-silver-900 dark:text-white">{order.id}</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <Badge color={order.status === 'DELIVERED' ? 'green' : 'blue'}>{order.status}</Badge>
-                            <Button size="sm" variant="outline">Invoice</Button>
-                        </div>
-                    </div>
-                    <div className="p-6">
-                        {order.items.map((item, idx) => (
-                            <div key={idx} className="flex gap-4 items-center mb-4 last:mb-0">
-                                <div className="w-16 h-16 bg-silver-100 dark:bg-silver-800 rounded-lg overflow-hidden border border-silver-200 dark:border-silver-700 shrink-0">
-                                    <img src={item.image} alt={item.productName} className="w-full h-full object-cover" />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold text-silver-900 dark:text-white">{item.productName}</h4>
-                                    <p className="text-sm text-silver-500">Qty: {item.quantity}</p>
-                                </div>
-                                <Button size="sm" variant="secondary">Buy Again</Button>
-                            </div>
-                        ))}
-                    </div>
-                 </Card>
-            ))}
-          </div>
-        </div>
-    );
-
-    return (
-        <div className="p-4 md:p-8 max-w-7xl mx-auto relative">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
-                <div>
-                <h1 className="text-3xl font-bold text-silver-900 dark:text-white">
-                    {user.role === 'FIXER' ? `Technician Portal` : `Hello, ${user.name.split(' ')[0]}`}
-                </h1>
-                <p className="text-silver-500 dark:text-silver-400">
-                    {user.role === 'FIXER' ? 'Manage assigned repairs and schedules' : 'Manage your devices and orders'}
-                </p>
-                </div>
-                {user.role === 'CUSTOMER' && (
-                    <div className="flex gap-2">
-                        <Button variant={activeTab === 'overview' ? 'primary' : 'secondary'} onClick={() => setActiveTab('overview')}>Overview</Button>
-                        <Button variant={activeTab === 'repairs' ? 'primary' : 'secondary'} onClick={() => setActiveTab('repairs')}>Repairs</Button>
-                        <Button variant={activeTab === 'orders' ? 'primary' : 'secondary'} onClick={() => setActiveTab('orders')}>Orders</Button>
-                    </div>
-                )}
-            </div>
-            
-            {user.role === 'FIXER' ? renderFixerView() : (
-                <>
-                    {activeTab === 'overview' && renderCustomerOverview()}
-                    {activeTab === 'repairs' && renderCustomerRepairs()}
-                    {activeTab === 'orders' && renderCustomerOrders()}
-                    {/* Support tab only renders for admin in the admin block, but just in case customer view uses this prop */}
-                </>
-            )}
-
-            {/* Global Chat Overlay for Selected Repair */}
-            {selectedRepairForChat && (
-                <ChatWidget 
-                    isOpen={true}
-                    onClose={() => setSelectedRepairForChat(null)}
-                    fixerName={MOCK_ALL_USERS.find(u => u.id === selectedRepairForChat.fixerId)?.name || 'Assigned Technician'}
-                    fixerStatus={MOCK_ALL_USERS.find(u => u.id === selectedRepairForChat.fixerId)?.availabilityStatus || 'ONLINE'}
-                    repairContext={selectedRepairForChat.deviceType}
-                />
-            )}
         </div>
     );
 };

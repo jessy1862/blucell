@@ -76,3 +76,51 @@ export interface ChatSession {
 export interface CartItem extends Product {
   quantity: number;
 }
+
+export interface LandingPageConfig {
+  hero: {
+    titlePrefix: string;
+    titleHighlight: string;
+    titleSuffix: string;
+    subtitle: string;
+    ctaPrimary: string;
+    ctaSecondary: string;
+    imageForeground: string;
+    imageBackground: string;
+  };
+  features: {
+    title: string;
+    description: string;
+  }[];
+  trending: {
+    sectionTitle: string;
+    sectionSubtitle: string;
+    items: {
+      title: string;
+      description: string;
+      image: string;
+      badge?: string;
+    }[];
+  };
+  ctaBottom: {
+    title: string;
+    description: string;
+    buttonText: string;
+  };
+}
+
+export interface ContactInfo {
+  phone: string;
+  email: string;
+  address: string;
+}
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  date: Date;
+  read: boolean;
+}

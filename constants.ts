@@ -1,5 +1,5 @@
 
-import { Product, RepairJob, User, Order, ChatSession } from './types';
+import { Product, RepairJob, User, Order, ChatSession, LandingPageConfig, ContactInfo } from './types';
 
 export const MOCK_USER: User = {
   id: 'u1',
@@ -137,6 +137,17 @@ export const MOCK_REPAIRS: RepairJob[] = [
     customerId: 'u1',
     dateBooked: '2023-10-28',
     aiDiagnosis: 'Likely battery degradation requiring replacement. Approx cost: $80-$150.'
+  },
+  {
+    id: 'r3',
+    deviceId: 'dev3',
+    deviceType: 'Gaming Console - Overheating',
+    issueDescription: 'Console shuts down after 10 minutes of gameplay.',
+    status: 'DIAGNOSING',
+    customerId: 'u3',
+    fixerId: 'u2', // Assigned to Super Admin (Jesica)
+    dateBooked: '2023-11-05',
+    aiDiagnosis: 'Thermal paste application issue or fan failure. Recommended: Cleaning and thermal paste replacement.'
   }
 ];
 
@@ -164,7 +175,7 @@ export const MOCK_ORDERS: Order[] = [
 
 export const MOCK_ALL_USERS: User[] = [
     { id: 'u1', name: 'Alex Sterling', email: 'alex@example.com', role: 'CUSTOMER', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256' },
-    { id: 'u2', name: 'Jesica R', email: 'jesicar1100@gmail.com', role: 'ADMIN', avatar: 'https://ui-avatars.com/api/?name=Jesica+R&background=random' },
+    { id: 'u2', name: 'Jesica R', email: 'jesicar1100@gmail.com', role: 'ADMIN', avatar: 'https://ui-avatars.com/api/?name=Jesica+R&background=random', availabilityStatus: 'ONLINE' },
     { id: 'f1', name: 'Mike Ross', email: 'mike@blucell.com', role: 'FIXER', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256', availabilityStatus: 'ONLINE' },
     { id: 'f2', name: 'Sarah Jane', email: 'sarah@blucell.com', role: 'FIXER', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256', availabilityStatus: 'BUSY' },
     { id: 'u3', name: 'John Doe', email: 'john@example.com', role: 'CUSTOMER', avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=random' },
@@ -218,3 +229,60 @@ export const MOCK_CHAT_SESSIONS: ChatSession[] = [
         status: 'OPEN'
     }
 ];
+
+export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
+  hero: {
+    titlePrefix: 'Future of',
+    titleHighlight: 'Tech',
+    titleSuffix: 'Repair & Retail.',
+    subtitle: 'BLUCELL is the premier ecosystem for buying premium gadgets and booking expert repairs instantly.',
+    ctaPrimary: 'Shop Gadgets',
+    ctaSecondary: 'Fix My Device',
+    imageForeground: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000',
+    imageBackground: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000'
+  },
+  features: [
+    { title: "Certified Fixers", description: "Every technician is vetted and expert-level." },
+    { title: "Fast Logistics", description: "Same-day pickup and delivery for repairs." },
+    { title: "Genuine Parts", description: "We use only OEM or high-grade components." },
+    { title: "90-Day Warranty", description: "Peace of mind on all services provided." }
+  ],
+  trending: {
+    sectionTitle: "Trending Gear",
+    sectionSubtitle: "Explore the latest tech hitting our shelves this week.",
+    items: [
+      {
+        title: "Aerial Photography",
+        description: "Capture the world from above with 4K drones.",
+        image: "https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?auto=format&fit=crop&q=80&w=800",
+        badge: "HOT"
+      },
+      {
+        title: "High-Fidelity Audio",
+        description: "",
+        image: "https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=800"
+      },
+      {
+        title: "Wearables",
+        description: "",
+        image: "https://images.unsplash.com/photo-1544117519-31a4b719223d?auto=format&fit=crop&q=80&w=600"
+      },
+      {
+        title: "Pro Cameras",
+        description: "",
+        image: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&q=80&w=600"
+      }
+    ]
+  },
+  ctaBottom: {
+    title: "Ready to Upgrade?",
+    description: "Join thousands of users who trust BLUCELL for their tech needs. Shop the latest tech or restore your current device to glory.",
+    buttonText: "Get Started Now"
+  }
+};
+
+export const DEFAULT_CONTACT_INFO: ContactInfo = {
+  phone: '+1 (555) 123-4567',
+  email: 'support@blucell.com',
+  address: '123 Tech Boulevard, San Francisco, CA 94107'
+};

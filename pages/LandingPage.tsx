@@ -1,8 +1,19 @@
 import React from 'react';
 import { Button } from '../components/ui';
 import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones } from 'lucide-react';
+import { LandingPageConfig } from '../types';
+import { DEFAULT_LANDING_CONFIG } from '../constants';
 
-export const LandingPage = () => {
+interface LandingPageProps {
+    config?: LandingPageConfig;
+}
+
+export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDING_CONFIG }) => {
+  const { hero, features, trending, ctaBottom } = config;
+
+  const FeatureIcons = [ShieldCheck, Truck, Cpu, Wrench];
+  const CategoryIcons = [null, Headphones, Watch, Camera]; // Mapping for trending items if needed, or we just rely on images
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -14,37 +25,37 @@ export const LandingPage = () => {
         <div className="container mx-auto px-6 relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8 animate-fade-in-up">
             <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-tight">
-              Future of <span className="text-transparent bg-clip-text bg-gradient-to-r from-blucell-400 to-blucell-600">Tech</span> <br />
-              Repair & Retail.
+              {hero.titlePrefix} <span className="text-transparent bg-clip-text bg-gradient-to-r from-blucell-400 to-blucell-600">{hero.titleHighlight}</span> <br />
+              {hero.titleSuffix}
             </h1>
             <p className="text-xl text-slate-300 max-w-lg">
-              BLUCELL is the premier ecosystem for buying premium gadgets and booking expert repairs instantly.
+              {hero.subtitle}
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button 
                 onClick={() => window.location.hash = '#/shop'}
                 className="text-lg px-8 py-4 rounded-full"
               >
-                Shop Gadgets
+                {hero.ctaPrimary}
               </Button>
               <Button 
                 onClick={() => window.location.hash = '#/repair'}
                 variant="outline" 
                 className="text-lg px-8 py-4 rounded-full border-slate-600 text-white hover:bg-white/10"
               >
-                Fix My Device
+                {hero.ctaSecondary}
               </Button>
             </div>
           </div>
           
           <div className="relative hidden lg:block h-[600px] w-full">
-             {/* PS5/Gaming Card - Positioned Background Right */}
+             {/* Background Image (PS5 in mock) */}
              <div className="absolute top-16 right-0 w-80 h-[28rem] rounded-2xl overflow-hidden shadow-2xl border border-slate-700 transform rotate-6 hover:rotate-2 transition-all duration-500 z-10 group bg-slate-900">
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent z-10 opacity-80"></div>
                 <img 
-                    src="https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000" 
+                    src={hero.imageBackground} 
                     className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700"
-                    alt="PlayStation 5" 
+                    alt="Background Device" 
                 />
                 <div className="absolute bottom-6 left-6 z-20">
                     <div className="flex items-center gap-2 mb-1 text-blucell-400">
@@ -55,12 +66,12 @@ export const LandingPage = () => {
                 </div>
              </div>
 
-             {/* Phone Card - Positioned Foreground Left */}
+             {/* Foreground Image (Phone in mock) */}
              <div className="absolute top-8 left-8 w-72 h-[30rem] rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 transform -rotate-6 hover:-rotate-2 transition-all duration-500 z-20 group hover:shadow-blucell-500/20">
                  <img 
-                    src="https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000" 
+                    src={hero.imageForeground} 
                     className="object-cover w-full h-full opacity-90 group-hover:opacity-100 transition-opacity" 
-                    alt="Smartphone" 
+                    alt="Foreground Device" 
                 />
                 {/* Simulated Notch/Dynamic Island */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-30"></div>
@@ -97,29 +108,27 @@ export const LandingPage = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {[
-                    { icon: ShieldCheck, title: "Certified Fixers", desc: "Every technician is vetted and expert-level." },
-                    { icon: Truck, title: "Fast Logistics", desc: "Same-day pickup and delivery for repairs." },
-                    { icon: Cpu, title: "Genuine Parts", desc: "We use only OEM or high-grade components." },
-                    { icon: Wrench, title: "90-Day Warranty", desc: "Peace of mind on all services provided." }
-                ].map((feature, idx) => (
-                    <div key={idx} className="p-6 bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-shadow">
-                        <feature.icon className="w-10 h-10 text-blucell-600 mb-4" />
-                        <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">{feature.title}</h3>
-                        <p className="text-slate-500 text-sm leading-relaxed">{feature.desc}</p>
-                    </div>
-                ))}
+                {features.map((feature, idx) => {
+                    const Icon = FeatureIcons[idx] || ShieldCheck;
+                    return (
+                        <div key={idx} className="p-6 bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-shadow">
+                            <Icon className="w-10 h-10 text-blucell-600 mb-4" />
+                            <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">{feature.title}</h3>
+                            <p className="text-slate-500 text-sm leading-relaxed">{feature.description}</p>
+                        </div>
+                    );
+                })}
             </div>
         </div>
       </section>
 
-      {/* Trending Gear Gallery (New Section) */}
+      {/* Trending Gear Gallery */}
       <section className="py-24 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-900">
         <div className="container mx-auto px-6">
           <div className="flex justify-between items-end mb-12">
             <div>
-              <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-3">Trending Gear</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-lg">Explore the latest tech hitting our shelves this week.</p>
+              <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-3">{trending.sectionTitle}</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-lg">{trending.sectionSubtitle}</p>
             </div>
             <Button variant="outline" onClick={() => window.location.hash = '#/shop'} className="hidden md:flex items-center">
               View All <ChevronRight className="w-4 h-4 ml-2" />
@@ -127,61 +136,63 @@ export const LandingPage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-6 h-[800px] md:h-[600px]">
-              {/* Large Hero Item */}
+              {/* Large Hero Item (Item 0) */}
               <div className="md:col-span-2 md:row-span-2 relative group overflow-hidden rounded-3xl cursor-pointer shadow-lg">
                   <img 
-                    src="https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?auto=format&fit=crop&q=80&w=800" 
+                    src={trending.items[0]?.image} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                    alt="Drone"
+                    alt={trending.items[0]?.title}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent p-8 flex flex-col justify-end">
-                      <div className="bg-blucell-600 w-fit px-3 py-1 rounded-full text-xs font-bold text-white mb-2">HOT</div>
-                      <h3 className="text-white text-3xl font-bold mb-1">Aerial Photography</h3>
-                      <p className="text-slate-300">Capture the world from above with 4K drones.</p>
+                      {trending.items[0]?.badge && (
+                          <div className="bg-blucell-600 w-fit px-3 py-1 rounded-full text-xs font-bold text-white mb-2">{trending.items[0].badge}</div>
+                      )}
+                      <h3 className="text-white text-3xl font-bold mb-1">{trending.items[0]?.title}</h3>
+                      <p className="text-slate-300">{trending.items[0]?.description}</p>
                   </div>
               </div>
               
-              {/* Top Right Item */}
+              {/* Top Right Item (Item 1) */}
               <div className="md:col-span-2 relative group overflow-hidden rounded-3xl cursor-pointer shadow-lg bg-slate-100 dark:bg-slate-900">
                   <img 
-                    src="https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=800" 
+                    src={trending.items[1]?.image} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    alt="Headphones"
+                    alt={trending.items[1]?.title}
                   />
                   <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
                       <div className="flex items-center gap-2 text-white">
                         <Headphones className="w-5 h-5" />
-                        <h3 className="font-bold text-xl">High-Fidelity Audio</h3>
+                        <h3 className="font-bold text-xl">{trending.items[1]?.title}</h3>
                       </div>
                   </div>
               </div>
 
-              {/* Bottom Left Small */}
+              {/* Bottom Left Small (Item 2) */}
               <div className="relative group overflow-hidden rounded-3xl cursor-pointer shadow-lg bg-slate-100 dark:bg-slate-900">
                   <img 
-                    src="https://images.unsplash.com/photo-1544117519-31a4b719223d?auto=format&fit=crop&q=80&w=600" 
+                    src={trending.items[2]?.image} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    alt="Smart Watch"
+                    alt={trending.items[2]?.title}
                   />
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
                     <div className="text-center opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-4 group-hover:translate-y-0">
                         <Watch className="w-8 h-8 text-white mx-auto mb-2" />
-                        <span className="text-white font-bold">Wearables</span>
+                        <span className="text-white font-bold">{trending.items[2]?.title}</span>
                     </div>
                   </div>
               </div>
 
-              {/* Bottom Right Small */}
+              {/* Bottom Right Small (Item 3) */}
               <div className="relative group overflow-hidden rounded-3xl cursor-pointer shadow-lg bg-slate-100 dark:bg-slate-900">
                   <img 
-                    src="https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&q=80&w=600" 
+                    src={trending.items[3]?.image} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    alt="Camera"
+                    alt={trending.items[3]?.title}
                   />
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
                     <div className="text-center opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-4 group-hover:translate-y-0">
                         <Camera className="w-8 h-8 text-white mx-auto mb-2" />
-                        <span className="text-white font-bold">Pro Cameras</span>
+                        <span className="text-white font-bold">{trending.items[3]?.title}</span>
                     </div>
                   </div>
               </div>
@@ -199,9 +210,11 @@ export const LandingPage = () => {
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 bg-blucell-800 rounded-full blur-3xl opacity-50"></div>
         
         <div className="container mx-auto px-6 text-center relative z-10">
-            <h2 className="text-4xl font-bold text-white mb-6">Ready to Upgrade?</h2>
-            <p className="text-blucell-100 text-lg mb-8 max-w-2xl mx-auto">Join thousands of users who trust BLUCELL for their tech needs. Shop the latest tech or restore your current device to glory.</p>
-            <Button className="bg-white text-blucell-700 hover:bg-blucell-50 px-8 py-3 text-lg rounded-full shadow-xl" onClick={() => window.location.hash = '#/auth'}>Get Started Now</Button>
+            <h2 className="text-4xl font-bold text-white mb-6">{ctaBottom.title}</h2>
+            <p className="text-blucell-100 text-lg mb-8 max-w-2xl mx-auto">{ctaBottom.description}</p>
+            <Button className="bg-white text-blucell-700 hover:bg-blucell-50 px-8 py-3 text-lg rounded-full shadow-xl" onClick={() => window.location.hash = '#/auth'}>
+                {ctaBottom.buttonText}
+            </Button>
         </div>
       </section>
     </div>

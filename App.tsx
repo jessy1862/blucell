@@ -8,11 +8,13 @@ import { Dashboard } from './pages/Dashboard';
 import { Auth } from './pages/Auth';
 import { ProfileSettings } from './pages/ProfileSettings';
 import { Checkout } from './pages/Checkout';
+import { ContactUs } from './pages/ContactUs';
+import { AboutUs } from './pages/AboutUs';
 import { CartDrawer } from './components/CartDrawer';
 import { SupportChatWidget } from './components/SupportChatWidget';
 import { Button } from './components/ui';
-import { MOCK_USER, MOCK_PRODUCTS, MOCK_CHAT_SESSIONS } from './constants';
-import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage } from './types';
+import { MOCK_USER, MOCK_PRODUCTS, MOCK_CHAT_SESSIONS, DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO } from './constants';
+import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage } from './types';
 import { ShoppingBag, User as UserIcon, Menu, X, Wrench, LogOut, Sun, Moon, Settings, Star, Globe, Coins } from 'lucide-react';
 
 interface NavbarProps {
@@ -173,6 +175,8 @@ const Navbar: React.FC<NavbarProps> = ({
             <Link to="/shop" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Shop</Link>
             <Link to="/bestsellers" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Best Sellers</Link>
             <Link to="/repair" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Repair</Link>
+            <Link to="/about" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">About Us</Link>
+            <Link to="/contact" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Contact</Link>
             
             <div className="flex items-center gap-4 px-3 py-2 mt-2 border-t border-slate-800">
                 <select 
@@ -219,28 +223,32 @@ const Footer = () => (
       <div>
         <h3 className="text-white font-bold text-lg mb-4">BLUCELL</h3>
         <p className="text-sm">Innovating the way you buy, use, and fix technology.</p>
+        <div className="mt-4 flex gap-4">
+            <Link to="/about" className="text-xs hover:text-white transition-colors">About Us</Link>
+            <Link to="/contact" className="text-xs hover:text-white transition-colors">Contact</Link>
+        </div>
       </div>
       <div>
         <h4 className="text-white font-semibold mb-4">Shop</h4>
         <ul className="space-y-2 text-sm">
-          <li>Phones</li>
-          <li>Laptops</li>
-          <li>Drones</li>
+          <li><Link to="/shop" className="hover:text-blucell-500">Phones</Link></li>
+          <li><Link to="/shop" className="hover:text-blucell-500">Laptops</Link></li>
+          <li><Link to="/shop" className="hover:text-blucell-500">Drones</Link></li>
         </ul>
       </div>
       <div>
         <h4 className="text-white font-semibold mb-4">Support</h4>
         <ul className="space-y-2 text-sm">
-          <li>Track Repair</li>
-          <li>Help Center</li>
-          <li>Warranty</li>
+          <li><Link to="/contact" className="hover:text-blucell-500">Help Center</Link></li>
+          <li><Link to="/dashboard" className="hover:text-blucell-500">Track Repair</Link></li>
+          <li><Link to="/contact" className="hover:text-blucell-500">Warranty</Link></li>
         </ul>
       </div>
       <div>
         <h4 className="text-white font-semibold mb-4">Legal</h4>
         <ul className="space-y-2 text-sm">
-          <li>Privacy Policy</li>
-          <li>Terms of Service</li>
+          <li><a href="#" className="hover:text-blucell-500">Privacy Policy</a></li>
+          <li><a href="#" className="hover:text-blucell-500">Terms of Service</a></li>
         </ul>
       </div>
     </div>
@@ -263,6 +271,13 @@ export default function App() {
 
   // Chat State
   const [supportSessions, setSupportSessions] = useState<ChatSession[]>(MOCK_CHAT_SESSIONS);
+
+  // Landing Page State
+  const [landingPageConfig, setLandingPageConfig] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
+
+  // Contact Info & Messages State
+  const [contactInfo, setContactInfo] = useState<ContactInfo>(DEFAULT_CONTACT_INFO);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
 
   useEffect(() => {
     if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -376,6 +391,17 @@ export default function App() {
 
   const clearCart = () => setCart([]);
 
+  // --- Contact Functions ---
+  const handleNewContactMessage = (msg: Omit<ContactMessage, 'id' | 'date' | 'read'>) => {
+    const newMessage: ContactMessage = {
+        ...msg,
+        id: Date.now().toString(),
+        date: new Date(),
+        read: false
+    };
+    setContactMessages(prev => [newMessage, ...prev]);
+  };
+
   // --- Chat Functions ---
 
   const handleSendSupportMessage = (text: string) => {
@@ -471,7 +497,7 @@ export default function App() {
         />
         <main className="flex-grow pt-16">
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage config={landingPageConfig} />} />
             <Route path="/shop" element={
               user ? <Marketplace addToCart={addToCart} products={products} formatPrice={formatPrice} /> : <Navigate to="/auth" />
             } />
@@ -499,11 +525,18 @@ export default function App() {
                         formatPrice={formatPrice}
                         supportSessions={supportSessions}
                         onAdminReply={handleAdminReply}
+                        landingPageConfig={landingPageConfig}
+                        onUpdateLandingPage={setLandingPageConfig}
+                        contactInfo={contactInfo}
+                        onUpdateContactInfo={setContactInfo}
+                        contactMessages={contactMessages}
                      /> : <Navigate to="/auth" />
             } />
             <Route path="/settings" element={
               user ? <ProfileSettings user={user} onUpdate={handleUpdateUser} onLogout={handleLogout} /> : <Navigate to="/auth" />
             } />
+            <Route path="/contact" element={<ContactUs contactInfo={contactInfo} onSendMessage={handleNewContactMessage} />} />
+            <Route path="/about" element={<AboutUs />} />
           </Routes>
         </main>
         <Footer />
