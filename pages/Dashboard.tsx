@@ -84,7 +84,7 @@ const ChatWidget = ({ fixerName, fixerStatus, repairContext, onClose, isOpen }: 
   if (!isOpen && onClose) return null;
 
   return (
-    <Card className={`flex flex-col overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 ${onClose ? 'fixed bottom-4 right-4 w-96 h-[500px] z-50' : 'h-[500px]'}`}>
+    <Card className={`flex flex-col overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 ${onClose ? 'fixed bottom-4 right-4 w-96 h-[500px] z-50 animate-scale-up' : 'h-[500px]'}`}>
       <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
             <div className="relative">
@@ -137,8 +137,11 @@ const ChatWidget = ({ fixerName, fixerStatus, repairContext, onClose, isOpen }: 
 // --- Standard Dashboard Component (Client View) ---
 
 const StandardDashboard = ({ user, formatPrice = (p) => `$${p}`, onUpdateUser }: { user: User, onUpdateUser?: (data: Partial<User>) => void, formatPrice?: (price: number) => string }) => {
-    // Using default mock data for demonstration
-    const repairs = MOCK_REPAIRS.filter(r => r.customerId === 'u1'); 
+    // Filter repairs by user ID. If no repairs found (e.g. fresh user), it will be empty which is correct.
+    // MOCK_REPAIRS contains data for 'u1' (Alex) and 'u3' (John).
+    const repairs = MOCK_REPAIRS.filter(r => r.customerId === user.id); 
+    // Mock orders are not linked by ID in the constant, so we just show all for demo purposes, or we could filter if we add IDs to orders.
+    // For now, assuming MOCK_ORDERS belongs to the logged in user for visual population.
     const orders = MOCK_ORDERS;
 
     return (
@@ -187,7 +190,8 @@ const StandardDashboard = ({ user, formatPrice = (p) => `$${p}`, onUpdateUser }:
                         ))
                     ) : (
                         <Card className="p-8 text-center text-silver-500">
-                            <p>No active repairs.</p>
+                            <p>No active repairs found.</p>
+                            <Link to="/repair" className="text-blucell-600 hover:underline mt-2 inline-block">Start a repair request</Link>
                         </Card>
                     )}
 
@@ -284,6 +288,9 @@ const AdminDashboard = ({
         platformLogo: localStorage.getItem('platform_logo') || ''
     });
     
+    // Tech Chat State
+    const [activeTechChatJobId, setActiveTechChatJobId] = useState<string | null>(null);
+
     // Modal State
     const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -542,9 +549,10 @@ const AdminDashboard = ({
     const renderTechnicianWorkspace = () => {
         // Find jobs assigned to this user (the admin)
         const myJobs = allRepairs.filter(r => r.fixerId === user.id);
+        const activeChatRepair = allRepairs.find(r => r.id === activeTechChatJobId);
 
         return (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-6 animate-fade-in relative">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h2 className="text-xl font-bold text-silver-900 dark:text-white">Technician Workspace</h2>
@@ -595,7 +603,12 @@ const AdminDashboard = ({
                                     </div>
                                     
                                     <div className="flex gap-2">
-                                        <Button size="sm" variant="outline" className="flex-1">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="flex-1"
+                                            onClick={() => setActiveTechChatJobId(job.id)}
+                                        >
                                             <MessageCircle className="w-4 h-4 mr-1" /> Chat
                                         </Button>
                                         <Button size="sm" className="flex-1">
@@ -607,6 +620,15 @@ const AdminDashboard = ({
                         ))}
                     </div>
                 )}
+
+                {/* Tech Chat Overlay */}
+                <ChatWidget 
+                    isOpen={!!activeTechChatJobId}
+                    onClose={() => setActiveTechChatJobId(null)}
+                    fixerName={user.name}
+                    fixerStatus="ONLINE"
+                    repairContext={activeChatRepair ? `${activeChatRepair.deviceType} (${activeChatRepair.id})` : ''}
+                />
             </div>
         );
     };
@@ -1219,6 +1241,120 @@ const AdminDashboard = ({
          </div>
     );
 
+    const renderOrders = () => {
+        const filteredOrders = orders.filter(o => 
+            o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            o.items.some(i => i.productName.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+
+        return (
+            <div className="space-y-6 animate-fade-in">
+                 <div className="flex flex-col sm:flex-row justify-between gap-4">
+                     <div className="relative w-full max-w-md">
+                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver-400" />
+                         <Input 
+                            placeholder="Search orders..." 
+                            className="pl-10" 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                     </div>
+                     <Button className="flex items-center gap-2" onClick={handleExportCSV}>
+                         <Download className="w-4 h-4" /> Export CSV
+                     </Button>
+                 </div>
+                 
+                 <Card className="overflow-hidden">
+                     <div className="overflow-x-auto">
+                         <table className="w-full text-left text-sm">
+                             <thead className="bg-silver-100 dark:bg-silver-800/50 text-silver-500 border-b border-silver-200 dark:border-silver-800">
+                                 <tr>
+                                     <th className="p-4 font-medium">Order ID</th>
+                                     <th className="p-4 font-medium">Date</th>
+                                     <th className="p-4 font-medium">Items</th>
+                                     <th className="p-4 font-medium">Total</th>
+                                     <th className="p-4 font-medium">Status</th>
+                                     <th className="p-4 font-medium text-right">Actions</th>
+                                 </tr>
+                             </thead>
+                             <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                                 {filteredOrders.map(order => (
+                                     <tr key={order.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
+                                         <td className="p-4 font-medium text-silver-900 dark:text-white">#{order.id}</td>
+                                         <td className="p-4 text-silver-500">{order.date}</td>
+                                         <td className="p-4 text-silver-500">{order.items.length} Items</td>
+                                         <td className="p-4 font-medium text-silver-900 dark:text-white">{formatPrice(order.total)}</td>
+                                         <td className="p-4">
+                                             <Badge color={order.status === 'DELIVERED' ? 'green' : order.status === 'SHIPPED' ? 'blue' : 'yellow'}>
+                                                 {order.status}
+                                             </Badge>
+                                         </td>
+                                         <td className="p-4 text-right">
+                                             <Button size="sm" variant="ghost" onClick={() => setViewingOrder(order)}>
+                                                 <Eye className="w-4 h-4" />
+                                             </Button>
+                                         </td>
+                                     </tr>
+                                 ))}
+                             </tbody>
+                         </table>
+                     </div>
+                 </Card>
+
+                {viewingOrder && (
+                    <Modal title={`Order Details: #${viewingOrder.id}`} onClose={() => setViewingOrder(null)}>
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center border-b border-silver-100 dark:border-silver-800 pb-4">
+                                <div>
+                                    <p className="text-sm text-silver-500">Date placed</p>
+                                    <p className="font-bold text-silver-900 dark:text-white">{viewingOrder.date}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm text-silver-500">Total Amount</p>
+                                    <p className="font-bold text-xl text-blucell-600">{formatPrice(viewingOrder.total)}</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="font-bold mb-3 text-silver-900 dark:text-white">Items Ordered</h4>
+                                <div className="space-y-3">
+                                    {viewingOrder.items.map((item, idx) => (
+                                        <div key={idx} className="flex gap-3 items-center p-3 bg-silver-50 dark:bg-silver-800/50 rounded-lg">
+                                            <img src={item.image} alt="" className="w-12 h-12 rounded bg-white object-cover" />
+                                            <div className="flex-1">
+                                                <p className="font-medium text-sm text-silver-900 dark:text-white">{item.productName}</p>
+                                                <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="font-bold mb-3 text-silver-900 dark:text-white">Update Status</h4>
+                                <div className="flex gap-2">
+                                    {['PROCESSING', 'SHIPPED', 'DELIVERED'].map((status) => (
+                                        <button
+                                            key={status}
+                                            onClick={() => handleUpdateOrderStatus(viewingOrder.id, status as Order['status'])}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
+                                                viewingOrder.status === status
+                                                ? 'bg-blucell-600 text-white border-blucell-600'
+                                                : 'border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800 text-silver-600 dark:text-silver-400'
+                                            }`}
+                                        >
+                                            {status}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+            </div>
+        );
+    };
+
     const renderSettings = () => (
         <div className="space-y-6 animate-fade-in">
             <Card className="p-8 max-w-2xl">
@@ -1411,114 +1547,6 @@ const AdminDashboard = ({
                                     {role}
                                 </button>
                             ))}
-                        </div>
-                    </div>
-                </Modal>
-             )}
-        </div>
-    );
-
-    const renderOrders = () => (
-        <div className="space-y-6 animate-fade-in">
-             <div className="flex justify-between items-center">
-                 <h2 className="text-xl font-bold text-silver-900 dark:text-white">Order Management</h2>
-                 <Button variant="outline" onClick={handleExportCSV} className="flex items-center gap-2">
-                     <Download className="w-4 h-4" /> Export CSV
-                 </Button>
-             </div>
-             
-             <Card className="overflow-hidden">
-                 <div className="overflow-x-auto">
-                     <table className="w-full text-left text-sm">
-                         <thead className="bg-silver-100 dark:bg-silver-800/50 text-silver-500 border-b border-silver-200 dark:border-silver-800">
-                             <tr>
-                                 <th className="p-4 font-medium">Order ID</th>
-                                 <th className="p-4 font-medium">Date</th>
-                                 <th className="p-4 font-medium">Items</th>
-                                 <th className="p-4 font-medium">Total</th>
-                                 <th className="p-4 font-medium">Status</th>
-                                 <th className="p-4 font-medium text-right">Actions</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
-                             {orders.map(order => (
-                                 <tr key={order.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                     <td className="p-4 font-medium">{order.id}</td>
-                                     <td className="p-4 text-silver-500">{order.date}</td>
-                                     <td className="p-4">
-                                         <div className="flex items-center gap-2">
-                                             {order.items.slice(0, 3).map((item, i) => (
-                                                 <img key={i} src={item.image} className="w-8 h-8 rounded object-cover border border-silver-200 dark:border-silver-700" title={item.productName} alt="" />
-                                             ))}
-                                             {order.items.length > 3 && (
-                                                 <span className="text-xs text-silver-400">+{order.items.length - 3}</span>
-                                             )}
-                                         </div>
-                                     </td>
-                                     <td className="p-4 font-bold">{formatPrice(order.total)}</td>
-                                     <td className="p-4">
-                                         <Badge color={order.status === 'DELIVERED' ? 'green' : order.status === 'SHIPPED' ? 'blue' : 'yellow'}>
-                                             {order.status}
-                                         </Badge>
-                                     </td>
-                                     <td className="p-4 text-right">
-                                         <Button size="sm" variant="ghost" onClick={() => setViewingOrder(order)}>
-                                             <Eye className="w-4 h-4" />
-                                         </Button>
-                                     </td>
-                                 </tr>
-                             ))}
-                         </tbody>
-                     </table>
-                 </div>
-             </Card>
-
-             {viewingOrder && (
-                <Modal title={`Order Details: ${viewingOrder.id}`} onClose={() => setViewingOrder(null)}>
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center pb-4 border-b border-silver-100 dark:border-silver-800">
-                            <div>
-                                <p className="text-sm text-silver-500">Order Date</p>
-                                <p className="font-medium">{viewingOrder.date}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-sm text-silver-500">Total Amount</p>
-                                <p className="font-bold text-lg text-blucell-600">{formatPrice(viewingOrder.total)}</p>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="font-bold mb-3">Order Items</h4>
-                            <div className="space-y-3">
-                                {viewingOrder.items.map((item, i) => (
-                                    <div key={i} className="flex gap-4 items-center">
-                                        <img src={item.image} className="w-12 h-12 rounded object-cover bg-silver-100" alt="" />
-                                        <div className="flex-1">
-                                            <p className="font-medium text-sm">{item.productName}</p>
-                                            <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="font-bold mb-3">Update Status</h4>
-                            <div className="flex gap-2">
-                                {['PROCESSING', 'SHIPPED', 'DELIVERED'].map((status) => (
-                                    <button
-                                        key={status}
-                                        onClick={() => handleUpdateOrderStatus(viewingOrder.id, status as any)}
-                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
-                                            viewingOrder.status === status
-                                            ? 'bg-blucell-600 text-white'
-                                            : 'bg-silver-100 dark:bg-silver-800 text-silver-600 dark:text-silver-400 hover:bg-silver-200 dark:hover:bg-silver-700'
-                                        }`}
-                                    >
-                                        {status}
-                                    </button>
-                                ))}
-                            </div>
                         </div>
                     </div>
                 </Modal>

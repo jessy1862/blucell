@@ -3,6 +3,7 @@ import { Card, Button, Input } from '../components/ui';
 import { User, UserRole } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, UserPlus, Mail, Lock, User as UserIcon } from 'lucide-react';
+import { MOCK_ALL_USERS } from '../constants';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -23,24 +24,33 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Determine Role
-    let role: UserRole = 'CUSTOMER';
-    if (email === 'jesicar1100@gmail.com') {
-        role = 'ADMIN';
-    } else if (email.includes('fixer')) {
-        role = 'FIXER';
-    }
-    
-    // Create mock user
-    const newUser: User = {
-      id: Date.now().toString(),
-      name: name || email.split('@')[0] || 'User',
-      email: email,
-      role: role,
-      avatar: `https://ui-avatars.com/api/?name=${name || email}&background=f97316&color=fff`
-    };
+    let loginUser: User;
 
-    onLogin(newUser);
+    // Check if user exists in mock data to preserve ID/Relationships
+    const existingUser = MOCK_ALL_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+    if (existingUser) {
+        loginUser = existingUser;
+    } else {
+        // Determine Role for new user
+        let role: UserRole = 'CUSTOMER';
+        if (email.includes('admin')) {
+            role = 'ADMIN';
+        } else if (email.includes('fixer')) {
+            role = 'FIXER';
+        }
+        
+        // Create new mock user
+        loginUser = {
+            id: Date.now().toString(),
+            name: name || email.split('@')[0] || 'User',
+            email: email,
+            role: role,
+            avatar: `https://ui-avatars.com/api/?name=${name || email}&background=f97316&color=fff`
+        };
+    }
+
+    onLogin(loginUser);
     setIsLoading(false);
     navigate('/dashboard');
   };
