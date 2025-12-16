@@ -7,7 +7,7 @@ import {
     Search, Plus, Filter, MoreVertical, Check, X, 
     Package, DollarSign, Clock, AlertCircle, Edit, Trash2, 
     ChevronRight, Send, Save, User as UserIcon, Image as ImageIcon,
-    LogOut, Settings, ExternalLink, BarChart as BarChartIcon, Layers, Type, MousePointer, Upload, Eye, ShieldAlert, Database, Lock, RefreshCw, Terminal, Briefcase, Cpu, Truck
+    LogOut, Settings, ExternalLink, BarChart as BarChartIcon, Layers, Type, MousePointer, Upload, Eye, ShieldAlert, Database, Lock, RefreshCw, Terminal, Briefcase, Cpu, Truck, MapPin, Phone
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -71,7 +71,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const getInitialTab = () => {
         const params = new URLSearchParams(location.search);
         const chatRepairId = params.get('chatRepairId');
-        if (chatRepairId) return 'support'; // Actually this might redirect to repairs now if support is admin only
+        if (chatRepairId) return 'repairs'; // Default to repairs if linked, was 'support' but restricted now
         if (user.role === 'FIXER') return 'repairs';
         return 'overview';
     };
@@ -202,17 +202,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         if (chatRepairId && allRepairs.length > 0) {
             const repair = allRepairs.find(r => r.id === chatRepairId);
             if (repair && repair.customerId) {
-                // Determine if we should go to repairs tab or support tab based on role
-                // Since support tab is now restricted, customer might need redirection logic if we had unified chat
-                // But for now, we assume this link is mostly for repair chat context
-                if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
-                     // Admins might want to see the repair details directly
-                     setViewingRepair(repair);
-                     setActiveTab('repairs');
-                } else if (user.role === 'CUSTOMER' || user.role === 'FIXER') {
-                     setViewingRepair(repair);
-                     setActiveTab('repairs');
-                }
+                 setViewingRepair(repair);
+                 setActiveTab('repairs');
             }
         }
     }, [location.search, allRepairs, user.role]);
@@ -1004,6 +995,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
                              </div>
 
                              <div className="space-y-6 flex-1 overflow-y-auto">
+                                 {viewingRepair.deliveryMethod && (
+                                     <div className="flex items-center gap-2 text-sm text-silver-600 dark:text-silver-300 bg-silver-50 dark:bg-silver-800/50 p-2 rounded-lg w-fit">
+                                         {viewingRepair.deliveryMethod === 'PICKUP' ? (
+                                             <>
+                                                <Truck className="w-4 h-4 text-blucell-600" />
+                                                <span className="font-medium">Method: Dispatch Pickup</span>
+                                             </>
+                                         ) : (
+                                             <>
+                                                <MapPin className="w-4 h-4 text-blucell-600" />
+                                                <span className="font-medium">Method: Self Drop-off</span>
+                                             </>
+                                         )}
+                                     </div>
+                                 )}
+
+                                 {/* Display Pickup Details if available */}
+                                 {viewingRepair.deliveryMethod === 'PICKUP' && viewingRepair.pickupAddress && (
+                                     <div className="bg-blucell-50 dark:bg-blucell-900/10 border border-blucell-200 dark:border-blucell-900 p-4 rounded-lg">
+                                         <h4 className="font-bold text-sm text-blucell-800 dark:text-blucell-200 mb-2 flex items-center gap-2">
+                                             <Truck className="w-4 h-4" /> Dispatch Information
+                                         </h4>
+                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                             <div>
+                                                 <p className="text-xs text-silver-500 uppercase tracking-wider mb-1">Pickup Address</p>
+                                                 <p className="font-medium text-silver-900 dark:text-white flex items-center gap-2">
+                                                     <MapPin className="w-3 h-3 text-silver-400" /> {viewingRepair.pickupAddress}
+                                                 </p>
+                                             </div>
+                                             <div>
+                                                 <p className="text-xs text-silver-500 uppercase tracking-wider mb-1">Contact Phone</p>
+                                                 <p className="font-medium text-silver-900 dark:text-white flex items-center gap-2">
+                                                     <Phone className="w-3 h-3 text-silver-400" /> {viewingRepair.contactPhone}
+                                                 </p>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 )}
+
                                  <div>
                                      <h4 className="font-semibold text-sm text-silver-500 mb-2 uppercase">Issue Description</h4>
                                      <p className="text-silver-800 dark:text-silver-200 bg-silver-50 dark:bg-silver-800 p-4 rounded-lg">
@@ -1137,4 +1167,345 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
     );
 
-    // ... rest of component
+    const renderCMS = () => (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex gap-2 overflow-x-auto pb-2 border-b border-silver-200 dark:border-silver-800">
+                {['hero', 'features', 'trending', 'cta', 'contact', 'messages', 'settings', 'team'].map(tab => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveCmsTab(tab as any)}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+                            activeCmsTab === tab 
+                            ? 'bg-blucell-100 text-blucell-700 dark:bg-blucell-900/30 dark:text-blucell-400' 
+                            : 'text-silver-600 hover:text-blucell-600 dark:text-silver-400'
+                        }`}
+                    >
+                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                ))}
+            </div>
+
+            <Card className="p-6">
+                {activeCmsTab === 'hero' && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input label="Title Prefix" value={cmsConfig.hero.titlePrefix} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titlePrefix: e.target.value}})} />
+                            <Input label="Title Highlight" value={cmsConfig.hero.titleHighlight} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleHighlight: e.target.value}})} />
+                        </div>
+                        <Input label="Title Suffix" value={cmsConfig.hero.titleSuffix} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleSuffix: e.target.value}})} />
+                        <Input label="Subtitle" value={cmsConfig.hero.subtitle} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, subtitle: e.target.value}})} />
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input label="Primary CTA" value={cmsConfig.hero.ctaPrimary} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaPrimary: e.target.value}})} />
+                            <Input label="Secondary CTA" value={cmsConfig.hero.ctaSecondary} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaSecondary: e.target.value}})} />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Hero Slideshow Images</label>
+                            <div className="grid grid-cols-3 gap-4 mb-4">
+                                {(cmsConfig.hero.images || []).map((img, i) => (
+                                    <div key={i} className="relative group rounded-lg overflow-hidden h-24 border border-silver-200 dark:border-silver-800">
+                                        <img src={img} className="w-full h-full object-cover" alt="" />
+                                        <button 
+                                            onClick={() => removeHeroImage(i)}
+                                            className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-silver-300 dark:border-silver-700 rounded-lg cursor-pointer hover:bg-silver-50 dark:hover:bg-silver-800">
+                                    <Plus className="w-5 h-5 text-silver-400" />
+                                    <span className="text-xs text-silver-500">Add Image</span>
+                                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleHeroImageUpload} />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeCmsTab === 'settings' && (
+                    <div className="space-y-6">
+                        <SectionTitle title="Platform Branding" subtitle="Upload your custom logo" />
+                        <div className="flex items-center gap-6">
+                            <div className="w-24 h-24 bg-silver-100 dark:bg-silver-800 rounded-xl flex items-center justify-center border border-silver-200 dark:border-silver-700 overflow-hidden">
+                                {platformLogo ? (
+                                    <img src={platformLogo} alt="Logo" className="w-full h-full object-contain p-2" />
+                                ) : (
+                                    <span className="text-xs text-silver-400">No Logo</span>
+                                )}
+                            </div>
+                            <div>
+                                <label className="cursor-pointer bg-blucell-600 hover:bg-blucell-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+                                    <Upload className="w-4 h-4" />
+                                    <span>Upload Logo</span>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                                </label>
+                                <p className="text-xs text-silver-500 mt-2">Recommended: PNG with transparent background.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeCmsTab === 'contact' && (
+                    <div className="space-y-4">
+                        <Input label="Phone" value={contactInfo.phone} onChange={e => onUpdateContactInfo({...contactInfo, phone: e.target.value})} />
+                        <Input label="Email" value={contactInfo.email} onChange={e => onUpdateContactInfo({...contactInfo, email: e.target.value})} />
+                        <Input label="Address" value={contactInfo.address} onChange={e => onUpdateContactInfo({...contactInfo, address: e.target.value})} />
+                    </div>
+                )}
+
+                {activeCmsTab === 'messages' && (
+                    <div className="space-y-4">
+                        {contactMessages.length === 0 ? (
+                            <p className="text-silver-500">No messages yet.</p>
+                        ) : (
+                            contactMessages.map(msg => (
+                                <div key={msg.id} className="p-4 border border-silver-200 dark:border-silver-800 rounded-lg hover:bg-silver-50 dark:hover:bg-silver-800/50">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h4 className="font-bold">{msg.subject}</h4>
+                                        <span className="text-xs text-silver-500">{new Date(msg.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <p className="text-sm text-silver-600 dark:text-silver-300 mb-2">{msg.message}</p>
+                                    <div className="flex justify-between items-center mt-2">
+                                        <span className="text-xs text-silver-400">From: {msg.name} ({msg.email})</span>
+                                        <button onClick={() => onDeleteContactMessage(msg.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
+
+                {activeCmsTab === 'team' && (
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg">Team Members</h3>
+                            <Button size="sm" onClick={() => setIsTeamModalOpen(true)}>
+                                <Plus className="w-4 h-4 mr-2" /> Add Member
+                            </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {team.map(member => (
+                                <div key={member.id} className="flex items-center gap-4 p-4 border border-silver-200 dark:border-silver-800 rounded-xl relative group">
+                                    <img src={member.image} alt={member.name} className="w-12 h-12 rounded-full object-cover" />
+                                    <div>
+                                        <p className="font-bold text-sm">{member.name}</p>
+                                        <p className="text-xs text-silver-500">{member.role}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleDeleteTeamMember(member.id)}
+                                        className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {isTeamModalOpen && (
+                            <Modal title="Add Team Member" onClose={() => setIsTeamModalOpen(false)}>
+                                <form onSubmit={handleTeamMemberSubmit} className="space-y-4">
+                                    <Input label="Name" value={currentTeamMember.name || ''} onChange={e => setCurrentTeamMember({...currentTeamMember, name: e.target.value})} required />
+                                    <Input label="Role" value={currentTeamMember.role || ''} onChange={e => setCurrentTeamMember({...currentTeamMember, role: e.target.value})} required />
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Photo</label>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-full overflow-hidden bg-silver-100 dark:bg-silver-800 border">
+                                                {currentTeamMember.image ? (
+                                                    <img src={currentTeamMember.image} className="w-full h-full object-cover" alt="" />
+                                                ) : <UserIcon className="w-8 h-8 m-auto text-silver-400" />}
+                                            </div>
+                                            <label className="cursor-pointer bg-silver-100 hover:bg-silver-200 dark:bg-silver-800 dark:hover:bg-silver-700 px-3 py-2 rounded text-xs transition-colors">
+                                                Upload
+                                                <input type="file" className="hidden" accept="image/*" onChange={handleTeamMemberImageUpload} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex justify-end pt-4">
+                                        <Button type="submit">Add Member</Button>
+                                    </div>
+                                </form>
+                            </Modal>
+                        )}
+                    </div>
+                )}
+
+                {/* Placeholder for other CMS tabs */}
+                {(activeCmsTab === 'features' || activeCmsTab === 'trending' || activeCmsTab === 'cta') && (
+                    <div className="text-center py-12 text-silver-500">
+                        <p>Editor for {activeCmsTab} section is coming soon.</p>
+                        <p className="text-xs mt-2">Edit 'constants.ts' directly for now.</p>
+                    </div>
+                )}
+
+                {activeCmsTab !== 'messages' && activeCmsTab !== 'settings' && activeCmsTab !== 'team' && (
+                    <div className="mt-6 flex justify-end">
+                        <Button onClick={handleSaveCMS} className="flex items-center gap-2">
+                            <Save className="w-4 h-4" /> Save Configuration
+                        </Button>
+                    </div>
+                )}
+            </Card>
+        </div>
+    );
+
+    const renderSupport = () => (
+        <div className="h-[calc(100vh-200px)] flex gap-6 animate-fade-in">
+            {/* Session List */}
+            <Card className="w-1/3 flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-800/50">
+                    <h3 className="font-bold">Active Sessions</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {supportSessions.length === 0 && <p className="p-4 text-sm text-silver-500 text-center">No active chats.</p>}
+                    {supportSessions.map(session => (
+                        <div 
+                            key={session.id}
+                            onClick={() => setActiveSessionId(session.id)}
+                            className={`p-4 border-b border-silver-100 dark:border-silver-800 cursor-pointer transition-colors hover:bg-silver-50 dark:hover:bg-silver-800 ${activeSessionId === session.id ? 'bg-blucell-50 dark:bg-blucell-900/10' : ''}`}
+                        >
+                            <div className="flex justify-between items-start mb-1">
+                                <span className="font-bold text-sm">{session.userName}</span>
+                                <span className="text-[10px] text-silver-400">{new Date(session.lastMessageTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            </div>
+                            <p className="text-xs text-silver-500 line-clamp-1">{session.lastMessage}</p>
+                            {session.unreadCount > 0 && <Badge color="red" className="mt-2">{session.unreadCount} new</Badge>}
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            {/* Chat Area */}
+            <Card className="flex-1 flex flex-col overflow-hidden">
+                {activeSessionId ? (
+                    <>
+                        <div className="p-4 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-800/50 flex justify-between items-center">
+                            <h3 className="font-bold">
+                                Chat with {supportSessions.find(s => s.id === activeSessionId)?.userName}
+                            </h3>
+                            <Button size="sm" variant="outline" onClick={() => setActiveSessionId(null)}>Close</Button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-silver-50 dark:bg-silver-900/50">
+                            {supportSessions.find(s => s.id === activeSessionId)?.messages.map(msg => (
+                                <div key={msg.id} className={`flex ${msg.senderId === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
+                                        msg.senderId === 'admin'
+                                        ? 'bg-blucell-600 text-white rounded-br-none'
+                                        : 'bg-white dark:bg-silver-800 border border-silver-200 dark:border-silver-700 rounded-bl-none'
+                                    }`}>
+                                        <p>{msg.text}</p>
+                                        <span className={`text-[10px] block mt-1 text-right opacity-70`}>
+                                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                            <div ref={chatEndRef} />
+                        </div>
+                        <div className="p-4 border-t border-silver-200 dark:border-silver-800 bg-white dark:bg-silver-900 flex gap-2">
+                            <input 
+                                className="flex-1 bg-silver-100 dark:bg-silver-800 border-0 rounded-full px-4 text-sm focus:ring-1 focus:ring-blucell-500 outline-none"
+                                placeholder="Type a reply..."
+                                value={chatReply}
+                                onChange={(e) => setChatReply(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                            />
+                            <button onClick={handleSendChat} className="p-2 bg-blucell-600 text-white rounded-full hover:bg-blucell-700">
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex-1 flex items-center justify-center text-silver-400">
+                        <p>Select a conversation to start chatting</p>
+                    </div>
+                )}
+            </Card>
+        </div>
+    );
+
+    const renderSystem = () => (
+        <div className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="p-6">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                        <Database className="w-5 h-5 text-blucell-600" /> Data Management
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 border border-silver-200 dark:border-silver-800 rounded-lg">
+                            <div>
+                                <p className="font-medium text-sm">Seed Product Catalog</p>
+                                <p className="text-xs text-silver-500">Reset store to default demo products.</p>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={handleResetDemoData} isLoading={isResetting}>
+                                <RefreshCw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> Reset
+                            </Button>
+                        </div>
+                        <div className="flex items-center justify-between p-3 border border-silver-200 dark:border-silver-800 rounded-lg">
+                            <div>
+                                <p className="font-medium text-sm">Clear Local Cache</p>
+                                <p className="text-xs text-silver-500">Fix UI issues by clearing local storage.</p>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={handleClearCache}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Clear
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-6">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                        <Terminal className="w-5 h-5 text-blucell-600" /> System Logs
+                    </h3>
+                    <div className="bg-black/90 text-green-400 p-4 rounded-lg font-mono text-xs h-64 overflow-y-auto">
+                        {systemLogs.map((log, i) => (
+                            <div key={i} className="mb-1">
+                                <span className="text-silver-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{' '}
+                                <span className={log.level === 'ERROR' ? 'text-red-500' : log.level === 'WARN' ? 'text-yellow-500' : 'text-green-400'}>{log.level}:</span>{' '}
+                                {log.message}
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="max-w-7xl mx-auto p-4 md:p-8 flex flex-col md:flex-row gap-8">
+            {/* Sidebar Navigation */}
+            <aside className="w-full md:w-64 flex-shrink-0">
+                {renderSidebar()}
+            </aside>
+
+            {/* Main Content Area */}
+            <main className="flex-1 min-w-0">
+                <div className="mb-8 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-3xl font-bold text-silver-900 dark:text-white capitalize">
+                            {activeTab}
+                        </h1>
+                        <p className="text-silver-500">
+                            Welcome back, {user.name.split(' ')[0]}
+                        </p>
+                    </div>
+                    {user.role === 'ADMIN' && (
+                        <Badge color="red" className="hidden md:inline-flex">Admin Mode</Badge>
+                    )}
+                </div>
+
+                {activeTab === 'overview' && renderOverview()}
+                {activeTab === 'users' && renderUsers()}
+                {activeTab === 'products' && renderProducts()}
+                {activeTab === 'orders' && renderOrders()}
+                {activeTab === 'repairs' && renderRepairs()}
+                {activeTab === 'cms' && renderCMS()}
+                {activeTab === 'support' && renderSupport()}
+                {activeTab === 'system' && renderSystem()}
+            </main>
+        </div>
+    );
+};

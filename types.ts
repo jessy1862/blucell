@@ -43,6 +43,9 @@ export interface RepairJob {
   dateBooked: string;
   estimatedCost?: number;
   aiDiagnosis?: string;
+  deliveryMethod?: 'PICKUP' | 'DROP_OFF';
+  pickupAddress?: string;
+  contactPhone?: string;
 }
 
 export interface Order {

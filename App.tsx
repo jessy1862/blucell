@@ -473,7 +473,9 @@ export default function App() {
                 avatar: firebaseUser.photoURL || '',
                 bio: bio,
                 availability_status: availabilityStatus,
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                phone: dbUser?.phone,
+                address: dbUser?.address
             });
         }
         
@@ -484,7 +486,9 @@ export default function App() {
           role: role,
           avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'User'}&background=random`,
           availabilityStatus: availabilityStatus as any,
-          bio: bio
+          bio: bio,
+          phone: dbUser?.phone, 
+          address: dbUser?.address
         };
         setUser(appUser);
         
@@ -503,9 +507,48 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch Admin Data
+  // Fetch Data based on User
   useEffect(() => {
-    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
+    if (!user) return;
+
+    // Fetch Orders for ALL users so customers can see their history
+    getOrdersFromNeon().then(dbOrders => {
+        if (dbOrders.length > 0) {
+            const formattedOrders = dbOrders.map((o: any) => ({
+                id: o.id,
+                date: o.date,
+                total: Number(o.total),
+                status: o.status as any,
+                items: JSON.parse(o.items || '[]')
+            }));
+            setAllOrders(formattedOrders);
+        }
+    });
+
+    // Fetch Repairs for ALL users
+    getRepairsFromNeon().then(dbRepairs => {
+        if (dbRepairs.length > 0) {
+            const formattedRepairs = dbRepairs.map((r: any) => ({
+                id: r.id,
+                deviceId: r.device_id,
+                deviceType: r.device_type,
+                issueDescription: r.issue_description,
+                status: r.status as any,
+                customerId: r.customer_id,
+                fixerId: r.fixer_id,
+                dateBooked: r.date_booked,
+                estimatedCost: r.estimated_cost ? Number(r.estimated_cost) : undefined,
+                aiDiagnosis: r.ai_diagnosis,
+                deliveryMethod: r.delivery_method as any,
+                pickupAddress: r.pickup_address,
+                contactPhone: r.contact_phone
+            }));
+            setAllRepairs(formattedRepairs);
+        }
+    });
+
+    // Admin Specific Data
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
         // Fetch Contact Messages
         getContactMessagesFromNeon().then(msgs => {
             if (msgs.length > 0) {
@@ -531,48 +574,12 @@ export default function App() {
                     email: u.email,
                     role: u.role as any,
                     avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
-                    phone: '', 
-                    address: '',
+                    phone: u.phone || '', 
+                    address: u.address || '',
                     bio: u.bio || '',
                     availabilityStatus: u.availability_status as any || 'OFFLINE'
                 }));
                 setAllUsers(formattedUsers);
-            }
-        });
-
-        // Fetch Orders
-        getOrdersFromNeon().then(dbOrders => {
-            if (dbOrders.length > 0) {
-                const formattedOrders = dbOrders.map((o: any) => ({
-                    id: o.id,
-                    date: o.date,
-                    total: Number(o.total),
-                    status: o.status as any,
-                    items: JSON.parse(o.items || '[]')
-                }));
-                setAllOrders(formattedOrders);
-            }
-        });
-    }
-    
-    // Always fetch repairs for Fixers too so they can see open pool
-    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'FIXER') {
-         // Fetch Repair Jobs
-        getRepairsFromNeon().then(dbRepairs => {
-            if (dbRepairs.length > 0) {
-                const formattedRepairs = dbRepairs.map((r: any) => ({
-                    id: r.id,
-                    deviceId: r.device_id,
-                    deviceType: r.device_type,
-                    issueDescription: r.issue_description,
-                    status: r.status as any,
-                    customerId: r.customer_id,
-                    fixerId: r.fixer_id,
-                    dateBooked: r.date_booked,
-                    estimatedCost: r.estimated_cost ? Number(r.estimated_cost) : undefined,
-                    aiDiagnosis: r.ai_diagnosis
-                }));
-                setAllRepairs(formattedRepairs);
             }
         });
     }
@@ -664,7 +671,9 @@ export default function App() {
           avatar: updatedUser.avatar,
           bio: updatedUser.bio,
           availability_status: updatedUser.availabilityStatus,
-          created_at: new Date().toISOString() // Or keep original
+          created_at: new Date().toISOString(), // Or keep original
+          phone: updatedUser.phone,
+          address: updatedUser.address
       });
     }
   };
@@ -684,7 +693,9 @@ export default function App() {
         avatar: updatedUser.avatar,
         bio: updatedUser.bio,
         availability_status: updatedUser.availabilityStatus,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        phone: updatedUser.phone,
+        address: updatedUser.address
       });
   };
 
@@ -806,7 +817,10 @@ export default function App() {
           fixer_id: repair.fixerId,
           date_booked: repair.dateBooked,
           estimated_cost: repair.estimatedCost || 0,
-          ai_diagnosis: repair.aiDiagnosis
+          ai_diagnosis: repair.aiDiagnosis,
+          delivery_method: repair.deliveryMethod,
+          pickup_address: repair.pickupAddress,
+          contact_phone: repair.contactPhone
       });
   };
 
@@ -823,7 +837,10 @@ export default function App() {
           fixer_id: repair.fixerId,
           date_booked: repair.dateBooked,
           estimated_cost: repair.estimatedCost || 0,
-          ai_diagnosis: repair.aiDiagnosis
+          ai_diagnosis: repair.aiDiagnosis,
+          delivery_method: repair.deliveryMethod,
+          pickup_address: repair.pickupAddress,
+          contact_phone: repair.contactPhone
       });
   };
 

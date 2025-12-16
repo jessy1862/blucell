@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, SectionTitle, Badge, StatusIndicator } from '../components/ui';
 import { analyzeRepairRequest } from '../services/geminiService';
-import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check, User } from 'lucide-react';
+import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check, User, Truck, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { RepairJob, User as UserType } from '../types';
 
@@ -21,6 +21,12 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
   const [selectedFixer, setSelectedFixer] = useState<UserType | null>(null);
+  const [deliveryMethod, setDeliveryMethod] = useState<'PICKUP' | 'DROP_OFF'>('PICKUP');
+  
+  // New state for dispatch details
+  const [contactPhone, setContactPhone] = useState(user?.phone || '');
+  const [pickupAddress, setPickupAddress] = useState(user?.address || '');
+
   const [newRepairId, setNewRepairId] = useState('');
   const navigate = useNavigate();
 
@@ -80,6 +86,17 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
   };
 
   const handleBook = () => {
+      // Security check: Must be logged in to book
+      if (!user) {
+          navigate('/auth');
+          return;
+      }
+
+      if (deliveryMethod === 'PICKUP' && (!contactPhone || !pickupAddress)) {
+          alert("Please provide contact phone and pickup address for dispatch.");
+          return;
+      }
+
       const id = `repair-${Date.now()}`;
       setNewRepairId(id);
       
@@ -89,11 +106,14 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
           deviceType: device,
           issueDescription: issue,
           status: selectedFixer ? 'DIAGNOSING' : 'PENDING',
-          customerId: user ? user.id : 'guest', // In a real app we'd force login
+          customerId: user.id, 
           fixerId: selectedFixer ? selectedFixer.id : undefined,
           dateBooked: new Date().toISOString().split('T')[0],
           aiDiagnosis: aiDiagnosis || undefined,
-          estimatedCost: 0 // Placeholder
+          estimatedCost: 0, // Placeholder
+          deliveryMethod: deliveryMethod,
+          contactPhone: deliveryMethod === 'PICKUP' ? contactPhone : undefined,
+          pickupAddress: deliveryMethod === 'PICKUP' ? pickupAddress : undefined
       };
 
       if (onBookRepair) {
@@ -234,69 +254,145 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
       )}
 
       {step === 3 && (
-          <div className="space-y-6 animate-fade-in-up">
-              <div className="flex flex-col md:flex-row justify-between items-end mb-6">
-                  <div>
-                      <h3 className="text-2xl font-bold">Choose Your Expert</h3>
-                      <p className="text-slate-500">Select a verified technician to handle your {device}.</p>
-                  </div>
-                  <Button variant="ghost" onClick={() => { setSelectedFixer(null); handleBook(); }} className="text-sm">
-                      Skip & Assign Randomly
-                  </Button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {fixers.length > 0 ? fixers.map((fixer) => {
-                      const isUnavailable = fixer.availabilityStatus === 'OFFLINE' || fixer.availabilityStatus === 'BUSY';
-                      return (
-                      <Card 
-                        key={fixer.id} 
-                        className={`p-6 transition-all hover:shadow-lg ${
-                            selectedFixer?.id === fixer.id 
-                            ? 'border-2 border-blucell-500 bg-blucell-50 dark:bg-blucell-900/10' 
-                            : 'border border-slate-200 dark:border-slate-800'
-                        } ${isUnavailable ? 'opacity-70 grayscale-[0.5]' : 'cursor-pointer'}`}
-                        onClick={() => !isUnavailable && setSelectedFixer(fixer)}
+          <div className="space-y-8 animate-fade-in-up">
+              {/* Delivery Method Selection */}
+              <Card className="p-6">
+                  <h3 className="text-lg font-bold mb-4">How should we get your device?</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button 
+                        onClick={() => setDeliveryMethod('PICKUP')}
+                        className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                            deliveryMethod === 'PICKUP' 
+                            ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/10' 
+                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900'
+                        }`}
                       >
-                          <div className="flex items-center gap-4 mb-4">
-                              <img src={fixer.avatar} alt={fixer.name} className="w-14 h-14 rounded-full object-cover bg-slate-200" />
-                              <div>
-                                  <h4 className="font-bold text-lg">{fixer.name}</h4>
-                                  <div className="flex items-center gap-2">
-                                      <StatusIndicator status={fixer.availabilityStatus || 'ONLINE'} />
-                                  </div>
-                              </div>
+                          <div className={`p-3 rounded-full ${deliveryMethod === 'PICKUP' ? 'bg-blucell-200 dark:bg-blucell-800' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                              <Truck className={`w-6 h-6 ${deliveryMethod === 'PICKUP' ? 'text-blucell-700 dark:text-blucell-300' : 'text-slate-500'}`} />
                           </div>
-                          
-                          {fixer.bio && (
-                              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2 italic">"{fixer.bio}"</p>
-                          )}
-                          
-                          <div className="flex gap-2 mb-4">
-                              <Badge color="blue">Certified</Badge>
-                              <Badge color="green">98% Success</Badge>
+                          <div>
+                              <h4 className="font-bold text-base mb-1">Dispatch Pickup</h4>
+                              <p className="text-sm text-slate-500 mb-2">A courier will collect your device from your address.</p>
+                              {deliveryMethod === 'PICKUP' && <Badge color="green">Free for Premium</Badge>}
                           </div>
+                      </button>
+                      
+                      <button 
+                        onClick={() => setDeliveryMethod('DROP_OFF')}
+                         className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                            deliveryMethod === 'DROP_OFF' 
+                            ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/10' 
+                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900'
+                        }`}
+                      >
+                          <div className={`p-3 rounded-full ${deliveryMethod === 'DROP_OFF' ? 'bg-blucell-200 dark:bg-blucell-800' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                              <MapPin className={`w-6 h-6 ${deliveryMethod === 'DROP_OFF' ? 'text-blucell-700 dark:text-blucell-300' : 'text-slate-500'}`} />
+                          </div>
+                          <div>
+                              <h4 className="font-bold text-base mb-1">Self Drop-off</h4>
+                              <p className="text-sm text-slate-500 mb-2">Bring your device to one of our certified centers or the fixer directly.</p>
+                              {deliveryMethod === 'DROP_OFF' && <Badge color="blue">Fastest</Badge>}
+                          </div>
+                      </button>
+                  </div>
 
-                          <Button 
-                            className={`w-full ${selectedFixer?.id === fixer.id ? 'bg-blucell-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
-                            disabled={isUnavailable}
-                          >
-                              {selectedFixer?.id === fixer.id ? 'Selected' : isUnavailable ? 'Unavailable' : 'Select Fixer'}
-                          </Button>
-                      </Card>
-                  )}) : (
-                      <div className="col-span-full text-center py-12 text-slate-500">
-                          <p>No specific fixers available at the moment.</p>
-                          <Button variant="outline" onClick={handleBook} className="mt-4">Continue with Auto-Assign</Button>
+                  {/* Additional Input for Pickup */}
+                  {deliveryMethod === 'PICKUP' && (
+                      <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl animate-fade-in">
+                          <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
+                              <Truck className="w-4 h-4 text-blucell-600" /> Dispatch Contact Details
+                          </h4>
+                          <p className="text-xs text-slate-500 mb-4">Please provide your contact details so our dispatch team can reach you.</p>
+                          <div className="grid grid-cols-1 gap-4">
+                              <Input 
+                                label="Contact Phone" 
+                                placeholder="+1 (555) 000-0000" 
+                                value={contactPhone} 
+                                onChange={(e) => setContactPhone(e.target.value)} 
+                              />
+                              <Input 
+                                label="Pickup Address" 
+                                placeholder="123 Main St, City, State, Zip" 
+                                value={pickupAddress} 
+                                onChange={(e) => setPickupAddress(e.target.value)} 
+                              />
+                          </div>
                       </div>
                   )}
+              </Card>
+
+              {/* Expert Selection */}
+              <div>
+                <div className="flex flex-col md:flex-row justify-between items-end mb-6">
+                    <div>
+                        <h3 className="text-2xl font-bold">Choose Your Expert</h3>
+                        <p className="text-slate-500">Select a verified technician to handle your {device}.</p>
+                    </div>
+                    <Button variant="ghost" onClick={() => { setSelectedFixer(null); handleBook(); }} className="text-sm">
+                        Skip & Assign Randomly
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {fixers.length > 0 ? fixers.map((fixer) => {
+                        const isUnavailable = fixer.availabilityStatus === 'OFFLINE' || fixer.availabilityStatus === 'BUSY';
+                        return (
+                        <Card 
+                            key={fixer.id} 
+                            className={`p-6 transition-all hover:shadow-lg ${
+                                selectedFixer?.id === fixer.id 
+                                ? 'border-2 border-blucell-500 bg-blucell-50 dark:bg-blucell-900/10' 
+                                : 'border border-slate-200 dark:border-slate-800'
+                            } ${isUnavailable ? 'opacity-70 grayscale-[0.5]' : 'cursor-pointer'}`}
+                            onClick={() => !isUnavailable && setSelectedFixer(fixer)}
+                        >
+                            <div className="flex items-center gap-4 mb-4">
+                                <img src={fixer.avatar} alt={fixer.name} className="w-14 h-14 rounded-full object-cover bg-slate-200" />
+                                <div>
+                                    <h4 className="font-bold text-lg">{fixer.name}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <StatusIndicator status={fixer.availabilityStatus || 'ONLINE'} />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {fixer.bio && (
+                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2 italic">"{fixer.bio}"</p>
+                            )}
+                            
+                            <div className="flex gap-2 mb-4">
+                                <Badge color="blue">Certified</Badge>
+                                <Badge color="green">98% Success</Badge>
+                            </div>
+
+                            <Button 
+                                className={`w-full ${selectedFixer?.id === fixer.id ? 'bg-blucell-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                                disabled={isUnavailable}
+                            >
+                                {selectedFixer?.id === fixer.id ? 'Selected' : isUnavailable ? 'Unavailable' : 'Select Fixer'}
+                            </Button>
+                        </Card>
+                    )}) : (
+                        <div className="col-span-full text-center py-12 text-slate-500">
+                            <p>No specific fixers available at the moment.</p>
+                            <Button variant="outline" onClick={handleBook} className="mt-4">Continue with Auto-Assign</Button>
+                        </div>
+                    )}
+                </div>
               </div>
 
               <div className="flex justify-between pt-6 border-t border-slate-200 dark:border-slate-800">
                   <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
-                  <Button onClick={handleBook} disabled={!selectedFixer && fixers.length > 0}>
-                      {selectedFixer ? `Confirm & Book with ${selectedFixer.name.split(' ')[0]}` : 'Confirm Booking'}
-                  </Button>
+                  
+                  {user ? (
+                      <Button onClick={handleBook} disabled={(!selectedFixer && fixers.length > 0) || (deliveryMethod === 'PICKUP' && (!contactPhone || !pickupAddress))}>
+                          {selectedFixer ? `Confirm & Book with ${selectedFixer.name.split(' ')[0]}` : 'Confirm Booking'}
+                      </Button>
+                  ) : (
+                      <Button onClick={() => navigate('/auth')} className="bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
+                          Sign In to Book Repair
+                      </Button>
+                  )}
               </div>
           </div>
       )}
@@ -308,7 +404,10 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
             </div>
             <h2 className="text-2xl font-bold mb-4">Booking Confirmed!</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-md mx-auto">
-                A courier has been dispatched to pick up your <strong>{device}</strong>. 
+                {deliveryMethod === 'PICKUP' 
+                    ? <span>A courier has been dispatched to pick up your <strong>{device}</strong> from <strong>{pickupAddress}</strong>.</span> 
+                    : <span>Please drop off your <strong>{device}</strong> at the designated center or with your fixer.</span>
+                }
                 {selectedFixer 
                     ? <span> You've assigned <strong>{selectedFixer.name}</strong> to your repair.</span> 
                     : " A technician will be assigned shortly."
@@ -323,7 +422,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                     </Button>
                 </div>
                 <p className="text-xs text-slate-500 text-left">
-                    "We've received your ticket for the {device}. You can chat directly with your technician in the dashboard to discuss details."
+                    "We've received your ticket for the {device}. You can chat directly with your technician in the dashboard to discuss {deliveryMethod === 'PICKUP' ? 'pickup time' : 'drop-off location'}."
                 </p>
             </div>
 

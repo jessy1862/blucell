@@ -117,7 +117,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             email: userData.email,
             role: userData.role,
             avatar: userData.avatar,
-            created_at: userData.createdAt
+            created_at: userData.createdAt,
+            phone: '',
+            address: ''
         });
 
         // App.tsx onAuthStateChanged will handle the rest
@@ -234,7 +236,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 email: userData.email,
                 role: userData.role,
                 avatar: userData.avatar,
-                created_at: userData.createdAt
+                created_at: userData.createdAt,
+                phone: '',
+                address: ''
             });
 
             // 6. Send Verification Email & Sign Out (Do not auto-login)
