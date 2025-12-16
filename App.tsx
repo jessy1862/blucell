@@ -14,10 +14,11 @@ import { AboutUs } from './pages/AboutUs';
 import { CartDrawer } from './components/CartDrawer';
 import { SupportChatWidget } from './components/SupportChatWidget';
 import { Button } from './components/ui';
-import { MOCK_USER, MOCK_PRODUCTS, MOCK_CHAT_SESSIONS, DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, MOCK_ALL_USERS, MOCK_ALL_ORDERS, MOCK_REPAIRS } from './constants';
+import { MOCK_PRODUCTS, MOCK_CHAT_SESSIONS, DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, MOCK_ALL_USERS, MOCK_ALL_ORDERS, MOCK_REPAIRS } from './constants';
 import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage, Order, RepairJob } from './types';
 import { ShoppingBag, User as UserIcon, Menu, X, Wrench, LogOut, Sun, Moon, Settings, Star, Globe, Coins } from 'lucide-react';
 import { generateChatResponse } from './services/geminiService';
+import { auth, onAuthStateChanged, signOut } from './services/firebase';
 
 interface NavbarProps {
   user: User | null;
@@ -129,16 +130,14 @@ const Navbar: React.FC<NavbarProps> = ({
                 {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
              </Button>
 
-             {user && (
-                <Button variant="ghost" className="p-2 rounded-full relative" onClick={openCart}>
-                    <ShoppingBag className="w-5 h-5" />
-                    {cartCount > 0 && (
-                        <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full">
-                            {cartCount}
-                        </span>
-                    )}
-                </Button>
-             )}
+             <Button variant="ghost" className="p-2 rounded-full relative" onClick={openCart}>
+                <ShoppingBag className="w-5 h-5" />
+                {cartCount > 0 && (
+                    <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full">
+                        {cartCount}
+                    </span>
+                )}
+             </Button>
              
              {user ? (
                <div className="flex items-center gap-3">
@@ -166,16 +165,14 @@ const Navbar: React.FC<NavbarProps> = ({
             <Button variant="ghost" className="p-2 rounded-full" onClick={toggleTheme}>
                 {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </Button>
-             {user && (
-                <Button variant="ghost" className="p-2 rounded-full relative" onClick={openCart}>
-                    <ShoppingBag className="w-5 h-5" />
-                     {cartCount > 0 && (
-                        <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full">
-                            {cartCount}
-                        </span>
-                    )}
-                </Button>
-             )}
+             <Button variant="ghost" className="p-2 rounded-full relative" onClick={openCart}>
+                <ShoppingBag className="w-5 h-5" />
+                 {cartCount > 0 && (
+                    <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full">
+                        {cartCount}
+                    </span>
+                )}
+            </Button>
             <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-md hover:bg-slate-800/10 dark:hover:bg-white/10">
               {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
@@ -272,10 +269,7 @@ const Footer = () => (
 export default function App() {
   // --- State Initialization with Persistence ---
   
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('blucell_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
 
   const [isDark, setIsDark] = useState(false);
   
@@ -313,6 +307,8 @@ export default function App() {
           // Migration check for old hero config
           if (!parsed.hero.images) {
               parsed.hero.images = [
+                  'https://images.unsplash.com/photo-1597872258083-ef52741e8696?auto=format&fit=crop&q=80&w=1000',
+                  'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&q=80&w=1000',
                   'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000',
                   'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000'
               ];
@@ -361,15 +357,41 @@ export default function App() {
     }
   }, []);
 
+  // Firebase Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser && firebaseUser.emailVerified) {
+        // Simple role assignment based on email for testing, defaults to CUSTOMER
+        const role = firebaseUser.email?.includes('admin') ? 'ADMIN' : 
+                     firebaseUser.email?.includes('fixer') ? 'FIXER' : 'CUSTOMER';
+        
+        const appUser: User = {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          email: firebaseUser.email || '',
+          role: role,
+          avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'User'}&background=random`
+        };
+        setUser(appUser);
+        
+        // Sync with allUsers list for admin view
+        setAllUsers(prev => {
+            if (!prev.find(u => u.id === appUser.id)) {
+                return [...prev, appUser];
+            }
+            return prev;
+        });
+      } else {
+        setUser(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('currency', currency);
     localStorage.setItem('language', language);
   }, [currency, language]);
-
-  useEffect(() => {
-      if (user) localStorage.setItem('blucell_user', JSON.stringify(user));
-      else localStorage.removeItem('blucell_user');
-  }, [user]);
 
   useEffect(() => {
       localStorage.setItem('blucell_cart', JSON.stringify(cart));
@@ -448,18 +470,12 @@ export default function App() {
   };
 
   const handleLogin = (loggedInUser: User) => {
-    setUser(loggedInUser);
-    // If logging in a new user not in mock db (from sign up), add to allUsers
-    setAllUsers(prev => {
-        if (!prev.find(u => u.id === loggedInUser.id)) {
-            return [...prev, loggedInUser];
-        }
-        return prev;
-    });
+    // This is now purely for navigation or additional logic if needed, 
+    // as onAuthStateChanged handles the main state
   };
 
   const handleLogout = () => {
-    setUser(null);
+    signOut(auth);
     setCart([]);
   };
 
@@ -656,6 +672,31 @@ export default function App() {
       }));
   };
 
+  const handleCreateSession = (userId: string): string => {
+      const existing = supportSessions.find(s => s.userId === userId);
+      if (existing) return existing.id;
+      
+      const targetUser = allUsers.find(u => u.id === userId);
+      const newSessionId = `s-${Date.now()}`;
+      
+      if (targetUser) {
+          const newSession: ChatSession = {
+              id: newSessionId,
+              userId: targetUser.id,
+              userName: targetUser.name,
+              userAvatar: targetUser.avatar,
+              messages: [],
+              unreadCount: 0,
+              lastMessage: 'Session started from repair request',
+              lastMessageTime: new Date(),
+              status: 'OPEN'
+          };
+          setSupportSessions(prev => [newSession, ...prev]);
+          return newSessionId;
+      }
+      return '';
+  };
+
   // Get current user's session messages for the widget
   const currentUserSession = user ? supportSessions.find(s => s.userId === user.id) : null;
   const userMessages = currentUserSession ? currentUserSession.messages : [];
@@ -691,19 +732,9 @@ export default function App() {
                 contactInfo={contactInfo}
                 onSendMessage={handleNewContactMessage}
             />} />
-            <Route path="/shop" element={
-              user ? <Marketplace addToCart={addToCart} products={products} formatPrice={formatPrice} /> : <Navigate to="/auth" />
-            } />
-            <Route path="/bestsellers" element={
-               user ? <BestSellers addToCart={addToCart} products={products} formatPrice={formatPrice} /> : <Navigate to="/auth" />
-            } />
-            <Route path="/repair" element={
-              user ? <RepairBooking 
-                        formatPrice={formatPrice} 
-                        user={user}
-                        onBookRepair={handleBookRepair}
-                     /> : <Navigate to="/auth" />
-            } />
+            <Route path="/shop" element={<Marketplace addToCart={addToCart} products={products} formatPrice={formatPrice} />} />
+            <Route path="/bestsellers" element={<BestSellers addToCart={addToCart} products={products} formatPrice={formatPrice} />} />
+            <Route path="/repair" element={<RepairBooking formatPrice={formatPrice} user={user || undefined} onBookRepair={handleBookRepair} />} />
             <Route path="/checkout" element={
               user ? <Checkout 
                         cart={cart} 
@@ -727,6 +758,7 @@ export default function App() {
                         formatPrice={formatPrice}
                         supportSessions={supportSessions}
                         onAdminReply={handleAdminReply}
+                        onCreateSession={handleCreateSession}
                         landingPageConfig={landingPageConfig}
                         onUpdateLandingPage={setLandingPageConfig}
                         contactInfo={contactInfo}
@@ -741,6 +773,7 @@ export default function App() {
                         onUpdateOrder={handleUpdateOrder}
                         allRepairs={allRepairs}
                         onUpdateRepair={handleUpdateRepair}
+                        platformLogo={platformLogo} // Pass the logo here
                      /> : <Navigate to="/auth" />
             } />
             <Route path="/settings" element={

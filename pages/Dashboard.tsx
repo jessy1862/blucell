@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User, Product, Order, RepairJob, ChatSession, LandingPageConfig, ContactInfo, ContactMessage, UserRole, AvailabilityStatus, ChatMessage } from '../types';
 import { Card, Button, Input, Badge, SectionTitle, Modal, StatusIndicator } from '../components/ui';
@@ -6,7 +7,7 @@ import {
     Search, Plus, Filter, MoreVertical, Check, X, 
     Package, DollarSign, Clock, AlertCircle, Edit, Trash2, 
     ChevronRight, Send, Save, User as UserIcon, Image as ImageIcon,
-    LogOut, Settings, ExternalLink, BarChart as BarChartIcon, Layers, Type, MousePointer, Upload
+    LogOut, Settings, ExternalLink, BarChart as BarChartIcon, Layers, Type, MousePointer, Upload, Eye
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -22,6 +23,7 @@ interface DashboardProps {
   formatPrice: (price: number) => string;
   supportSessions: ChatSession[];
   onAdminReply: (sessionId: string, text: string) => void;
+  onCreateSession: (userId: string) => string;
   landingPageConfig: LandingPageConfig;
   onUpdateLandingPage: (config: LandingPageConfig) => void;
   contactInfo: ContactInfo;
@@ -35,6 +37,7 @@ interface DashboardProps {
   onUpdateOrder: (id: string, status: Order['status']) => void;
   allRepairs: RepairJob[];
   onUpdateRepair: (r: RepairJob) => void;
+  platformLogo?: string;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -48,10 +51,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
     // Product Props
     products, onAddProduct, onUpdateProduct, onDeleteProduct,
     // Support Props
-    supportSessions, onAdminReply,
+    supportSessions, onAdminReply, onCreateSession,
     // CMS Props
     landingPageConfig, onUpdateLandingPage, contactInfo, onUpdateContactInfo, onUpdatePlatformSettings,
-    contactMessages, onDeleteContactMessage
+    contactMessages, onDeleteContactMessage, platformLogo
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -69,6 +72,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     
     // --- User Management State ---
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+    const [viewingUser, setViewingUser] = useState<User | null>(null);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [newUserData, setNewUserData] = useState<Partial<User>>({ name: '', email: '', role: 'CUSTOMER' });
 
@@ -90,7 +94,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     // --- CMS State ---
     const [cmsConfig, setCmsConfig] = useState<LandingPageConfig>(landingPageConfig);
-    const [activeCmsTab, setActiveCmsTab] = useState<'hero' | 'features' | 'trending' | 'cta'>('hero');
+    const [activeCmsTab, setActiveCmsTab] = useState<'hero' | 'features' | 'trending' | 'cta' | 'contact' | 'messages' | 'settings'>('hero');
 
     // --- Computed Lists & Filtering ---
     const filteredUsers = useMemo(() => {
@@ -120,14 +124,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return allRepairs.filter(r => r.customerId === user.id);
     }, [allRepairs, user]);
 
-    // Analytics Data (Mock generation based on orders)
+    // Analytics Data (Real Calculation from allOrders)
     const revenueData = useMemo(() => {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        // Generate pseudo-random data seeded by order length to make it look dynamic but consistent
-        return months.map(m => ({
-            name: m,
-            revenue: Math.floor(Math.random() * 5000) + 2000 + (allOrders.length * 100),
-            orders: Math.floor(Math.random() * 50) + 10
+        const data: Record<string, { revenue: number, orders: number }> = {};
+        
+        // Initialize a 6-month window (or relevant window based on data)
+        // For this implementation, we'll scan allOrders to find the range or default to current year
+        
+        // Let's just group by "Month Year" for all available orders to be accurate
+        allOrders.forEach(order => {
+            if (!order.date) return;
+            const date = new Date(order.date);
+            const key = date.toLocaleString('default', { month: 'short' }); // e.g., "Oct"
+            
+            if (!data[key]) {
+                data[key] = { revenue: 0, orders: 0 };
+            }
+            data[key].revenue += order.total;
+            data[key].orders += 1;
+        });
+
+        // Ensure we have a nice chronological order if possible, or just default months if data is sparse
+        const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const sortedData = Object.entries(data).sort((a, b) => {
+            return monthOrder.indexOf(a[0]) - monthOrder.indexOf(b[0]);
+        });
+
+        // If no data, show placeholders
+        if (sortedData.length === 0) {
+             return monthOrder.slice(0, 6).map(m => ({ name: m, revenue: 0, orders: 0 }));
+        }
+
+        return sortedData.map(([name, stats]) => ({
+            name,
+            revenue: stats.revenue,
+            orders: stats.orders
         }));
     }, [allOrders]);
 
@@ -137,6 +168,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
             setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
     }, [activeSessionId, supportSessions]);
+
+    // Handle Chat Navigation from URL
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const chatRepairId = params.get('chatRepairId');
+        
+        if (chatRepairId && allRepairs.length > 0) {
+            const repair = allRepairs.find(r => r.id === chatRepairId);
+            if (repair && repair.customerId) {
+                // Ensure session exists
+                const sessionId = onCreateSession(repair.customerId);
+                if (sessionId) {
+                    setActiveSessionId(sessionId);
+                    setActiveTab('support');
+                    // We can clear the param to avoid re-triggering if needed, but keeping it helps state persistence on refresh until navigation changes
+                }
+            }
+        }
+    }, [location.search, allRepairs, onCreateSession]);
 
     // --- Handlers ---
 
@@ -232,7 +282,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         }
                     }));
                 };
-                reader.readAsDataURL(file);
+                reader.readAsDataURL(file as Blob);
             });
         }
     };
@@ -245,6 +295,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 images: prev.hero.images.filter((_, i) => i !== index)
             }
         }));
+    };
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result as string;
+                onUpdatePlatformSettings({ logo: base64 });
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     // --- Render Functions ---
@@ -414,262 +476,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
     );
 
-    const renderCMS = () => {
-        return (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-                <div className="space-y-6">
-                    <Card className="p-0 overflow-hidden">
-                        <div className="flex border-b border-silver-200 dark:border-silver-800 bg-silver-50 dark:bg-silver-900">
-                             <button 
-                                onClick={() => setActiveCmsTab('hero')}
-                                className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeCmsTab === 'hero' ? 'text-blucell-600 border-b-2 border-blucell-600 bg-white dark:bg-silver-800' : 'text-silver-500 hover:text-silver-700'}`}
-                             >
-                                 <LayoutTemplate className="w-4 h-4" /> Hero
-                             </button>
-                             <button 
-                                onClick={() => setActiveCmsTab('features')}
-                                className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeCmsTab === 'features' ? 'text-blucell-600 border-b-2 border-blucell-600 bg-white dark:bg-silver-800' : 'text-silver-500 hover:text-silver-700'}`}
-                             >
-                                 <Layers className="w-4 h-4" /> Features
-                             </button>
-                             <button 
-                                onClick={() => setActiveCmsTab('trending')}
-                                className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeCmsTab === 'trending' ? 'text-blucell-600 border-b-2 border-blucell-600 bg-white dark:bg-silver-800' : 'text-silver-500 hover:text-silver-700'}`}
-                             >
-                                 <ShoppingBag className="w-4 h-4" /> Trending
-                             </button>
-                             <button 
-                                onClick={() => setActiveCmsTab('cta')}
-                                className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 ${activeCmsTab === 'cta' ? 'text-blucell-600 border-b-2 border-blucell-600 bg-white dark:bg-silver-800' : 'text-silver-500 hover:text-silver-700'}`}
-                             >
-                                 <MousePointer className="w-4 h-4" /> CTA
-                             </button>
-                        </div>
-                        
-                        <div className="p-6">
-                            {/* Hero Tab */}
-                            {activeCmsTab === 'hero' && (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-silver-900 dark:text-white">Hero Section Content</h4>
-                                        <Button size="sm" variant="ghost" className="text-blucell-600" onClick={() => window.open('/', '_blank')}>
-                                            Preview <ExternalLink className="w-3 h-3 ml-1" />
-                                        </Button>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <Input 
-                                            label="Prefix" 
-                                            value={cmsConfig.hero.titlePrefix} 
-                                            onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titlePrefix: e.target.value}})}
-                                        />
-                                        <Input 
-                                            label="Highlight" 
-                                            value={cmsConfig.hero.titleHighlight} 
-                                            onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleHighlight: e.target.value}})}
-                                        />
-                                        <Input 
-                                            label="Suffix" 
-                                            value={cmsConfig.hero.titleSuffix} 
-                                            onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleSuffix: e.target.value}})}
-                                        />
-                                    </div>
-                                    <Input 
-                                        label="Subtitle" 
-                                        value={cmsConfig.hero.subtitle} 
-                                        onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, subtitle: e.target.value}})}
-                                    />
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <Input 
-                                            label="Primary CTA" 
-                                            value={cmsConfig.hero.ctaPrimary} 
-                                            onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaPrimary: e.target.value}})}
-                                        />
-                                        <Input 
-                                            label="Secondary CTA" 
-                                            value={cmsConfig.hero.ctaSecondary} 
-                                            onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaSecondary: e.target.value}})}
-                                        />
-                                    </div>
-
-                                    {/* Hero Slideshow Management */}
-                                    <div className="pt-4 mt-4 border-t border-silver-100 dark:border-silver-800">
-                                        <h4 className="font-bold text-sm text-silver-900 dark:text-white mb-3">Hero Slideshow Images</h4>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            {cmsConfig.hero.images?.map((img, idx) => (
-                                                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-silver-200 dark:border-silver-700 group">
-                                                    <img src={img} className="w-full h-full object-cover" alt={`Slide ${idx + 1}`} />
-                                                    <button 
-                                                        onClick={() => removeHeroImage(idx)}
-                                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    >
-                                                        <X className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            <label className="border-2 border-dashed border-silver-300 dark:border-silver-700 rounded-lg flex flex-col items-center justify-center aspect-square cursor-pointer hover:bg-silver-50 dark:hover:bg-silver-800 transition-colors">
-                                                <Upload className="w-6 h-6 text-silver-400 mb-2" />
-                                                <span className="text-xs text-silver-500">Upload Image</span>
-                                                <input type="file" className="hidden" accept="image/*" multiple onChange={handleHeroImageUpload} />
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Features Tab */}
-                            {activeCmsTab === 'features' && (
-                                <div className="space-y-6">
-                                    <h4 className="font-bold text-silver-900 dark:text-white">Features Grid</h4>
-                                    {cmsConfig.features.map((feature, idx) => (
-                                        <div key={idx} className="p-4 bg-silver-50 dark:bg-silver-800/50 rounded-lg border border-silver-100 dark:border-silver-800">
-                                            <p className="text-xs font-bold text-silver-400 mb-2 uppercase">Feature {idx + 1}</p>
-                                            <div className="space-y-2">
-                                                <Input 
-                                                    placeholder="Title"
-                                                    value={feature.title}
-                                                    onChange={(e) => {
-                                                        const newFeatures = [...cmsConfig.features];
-                                                        newFeatures[idx] = { ...feature, title: e.target.value };
-                                                        setCmsConfig({ ...cmsConfig, features: newFeatures });
-                                                    }}
-                                                />
-                                                <Input 
-                                                    placeholder="Description"
-                                                    value={feature.description}
-                                                    onChange={(e) => {
-                                                        const newFeatures = [...cmsConfig.features];
-                                                        newFeatures[idx] = { ...feature, description: e.target.value };
-                                                        setCmsConfig({ ...cmsConfig, features: newFeatures });
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Trending Tab */}
-                            {activeCmsTab === 'trending' && (
-                                <div className="space-y-6">
-                                    <div className="space-y-4">
-                                        <Input 
-                                            label="Section Title"
-                                            value={cmsConfig.trending.sectionTitle}
-                                            onChange={(e) => setCmsConfig({...cmsConfig, trending: {...cmsConfig.trending, sectionTitle: e.target.value}})}
-                                        />
-                                        <Input 
-                                            label="Section Subtitle"
-                                            value={cmsConfig.trending.sectionSubtitle}
-                                            onChange={(e) => setCmsConfig({...cmsConfig, trending: {...cmsConfig.trending, sectionSubtitle: e.target.value}})}
-                                        />
-                                    </div>
-                                    <h5 className="font-bold text-sm text-silver-900 dark:text-white pt-4 border-t border-silver-100 dark:border-silver-800">Featured Items</h5>
-                                    {cmsConfig.trending.items.map((item, idx) => (
-                                        <div key={idx} className="p-3 border border-silver-100 dark:border-silver-800 rounded-lg flex gap-3">
-                                            <img src={item.image} className="w-12 h-12 rounded bg-silver-100 object-cover" alt="" />
-                                            <div className="flex-1 space-y-2">
-                                                 <Input 
-                                                    className="text-xs py-1 h-8"
-                                                    placeholder="Title"
-                                                    value={item.title}
-                                                    onChange={(e) => {
-                                                        const newItems = [...cmsConfig.trending.items];
-                                                        newItems[idx] = { ...item, title: e.target.value };
-                                                        setCmsConfig({ ...cmsConfig, trending: { ...cmsConfig.trending, items: newItems } });
-                                                    }}
-                                                />
-                                                <Input 
-                                                    className="text-xs py-1 h-8"
-                                                    placeholder="Image URL"
-                                                    value={item.image}
-                                                    onChange={(e) => {
-                                                        const newItems = [...cmsConfig.trending.items];
-                                                        newItems[idx] = { ...item, image: e.target.value };
-                                                        setCmsConfig({ ...cmsConfig, trending: { ...cmsConfig.trending, items: newItems } });
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* CTA Tab */}
-                            {activeCmsTab === 'cta' && (
-                                <div className="space-y-4">
-                                    <h4 className="font-bold text-silver-900 dark:text-white">Bottom Call to Action</h4>
-                                    <Input 
-                                        label="Title" 
-                                        value={cmsConfig.ctaBottom.title} 
-                                        onChange={e => setCmsConfig({...cmsConfig, ctaBottom: {...cmsConfig.ctaBottom, title: e.target.value}})}
-                                    />
-                                    <div>
-                                        <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Description</label>
-                                        <textarea 
-                                            className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm h-24 focus:outline-none focus:ring-2 focus:ring-blucell-500 text-silver-900 dark:text-silver-100"
-                                            value={cmsConfig.ctaBottom.description}
-                                            onChange={e => setCmsConfig({...cmsConfig, ctaBottom: {...cmsConfig.ctaBottom, description: e.target.value}})}
-                                        />
-                                    </div>
-                                    <Input 
-                                        label="Button Text" 
-                                        value={cmsConfig.ctaBottom.buttonText} 
-                                        onChange={e => setCmsConfig({...cmsConfig, ctaBottom: {...cmsConfig.ctaBottom, buttonText: e.target.value}})}
-                                    />
-                                </div>
-                            )}
-
-                            <div className="mt-6 pt-6 border-t border-silver-100 dark:border-silver-800 flex justify-end">
-                                <Button onClick={handleSaveCMS}>Save Changes</Button>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center gap-2 mb-6">
-                            <Settings className="w-5 h-5 text-blucell-600" />
-                            <h3 className="font-bold text-lg text-silver-900 dark:text-white">Platform Settings</h3>
-                        </div>
-                        <div className="space-y-4">
-                            <Input 
-                                label="Logo URL" 
-                                placeholder="https://..." 
-                                onChange={(e) => onUpdatePlatformSettings({ logo: e.target.value })}
-                            />
-                        </div>
-                    </Card>
-                </div>
-
-                <div className="space-y-6">
-                     <Card className="p-6">
-                         <h3 className="font-bold text-lg text-silver-900 dark:text-white mb-6">Contact Messages</h3>
-                         <div className="space-y-4 max-h-[500px] overflow-y-auto">
-                            {contactMessages.length === 0 && <p className="text-sm text-silver-500 italic">No messages received.</p>}
-                            {contactMessages.map(msg => (
-                                <div key={msg.id} className="p-4 border border-silver-100 dark:border-silver-800 rounded-lg relative group">
-                                    <button 
-                                        onClick={() => onDeleteContactMessage(msg.id)}
-                                        className="absolute top-2 right-2 p-1 text-silver-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h4 className="font-bold text-sm text-silver-900 dark:text-white">{msg.subject}</h4>
-                                        <span className="text-xs text-silver-400">{new Date(msg.date).toLocaleDateString()}</span>
-                                    </div>
-                                    <p className="text-xs text-blucell-600 font-medium mb-2">{msg.name} &lt;{msg.email}&gt;</p>
-                                    <p className="text-sm text-silver-600 dark:text-silver-300 bg-silver-50 dark:bg-silver-800/50 p-3 rounded-md">
-                                        {msg.message}
-                                    </p>
-                                </div>
-                            ))}
-                         </div>
-                     </Card>
-                </div>
-            </div>
-        );
-    };
-
     const renderUsers = () => (
         <div className="space-y-6 animate-fade-in">
              <div className="flex justify-between items-center">
@@ -710,6 +516,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                         {u.availabilityStatus && <StatusIndicator status={u.availabilityStatus} />}
                                     </td>
                                     <td className="px-4 py-3 text-right">
+                                        <button 
+                                            className="text-silver-400 hover:text-blucell-600 transition-colors mr-2"
+                                            onClick={() => setViewingUser(u)}
+                                            title="View Details"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                        </button>
                                         <button className="text-silver-400 hover:text-blucell-600 transition-colors mr-2"><Edit className="w-4 h-4" /></button>
                                     </td>
                                 </tr>
@@ -740,6 +553,47 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             <Button type="submit">Create User</Button>
                         </div>
                     </form>
+                </Modal>
+            )}
+
+            {viewingUser && (
+                <Modal title="User Details" onClose={() => setViewingUser(null)}>
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-4 bg-silver-50 dark:bg-silver-800 p-4 rounded-lg">
+                            <img src={viewingUser.avatar} alt={viewingUser.name} className="w-16 h-16 rounded-full object-cover border-2 border-white dark:border-silver-700" />
+                            <div>
+                                <h3 className="font-bold text-lg">{viewingUser.name}</h3>
+                                <p className="text-sm text-silver-500">{viewingUser.email}</p>
+                                <div className="mt-2 flex gap-2">
+                                    <Badge>{viewingUser.role}</Badge>
+                                    {viewingUser.availabilityStatus && <StatusIndicator status={viewingUser.availabilityStatus} />}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                <p className="text-silver-500 text-xs uppercase font-bold mb-1">User ID</p>
+                                <p className="font-mono text-xs">{viewingUser.id}</p>
+                            </div>
+                            <div className="p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                <p className="text-silver-500 text-xs uppercase font-bold mb-1">Phone</p>
+                                <p>{viewingUser.phone || 'N/A'}</p>
+                            </div>
+                            <div className="col-span-2 p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                <p className="text-silver-500 text-xs uppercase font-bold mb-1">Address</p>
+                                <p>{viewingUser.address || 'N/A'}</p>
+                            </div>
+                            <div className="col-span-2 p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                <p className="text-silver-500 text-xs uppercase font-bold mb-1">Bio</p>
+                                <p className="italic text-silver-600 dark:text-silver-400">{viewingUser.bio || 'No bio provided.'}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end pt-4 border-t border-silver-100 dark:border-silver-800">
+                            <Button onClick={() => setViewingUser(null)}>Close</Button>
+                        </div>
+                    </div>
                 </Modal>
             )}
         </div>
@@ -855,7 +709,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 <th className="px-4 py-3">Items</th>
                                 <th className="px-4 py-3">Total</th>
                                 <th className="px-4 py-3">Status</th>
-                                {user.role === 'ADMIN' && <th className="px-4 py-3 text-right">Action</th>}
+                                <th className="px-4 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
@@ -874,8 +728,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                     <td className="px-4 py-3">
                                         <Badge color={order.status === 'DELIVERED' ? 'green' : order.status === 'SHIPPED' ? 'blue' : 'yellow'}>{order.status}</Badge>
                                     </td>
-                                    {user.role === 'ADMIN' && (
-                                        <td className="px-4 py-3 text-right">
+                                    <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
+                                        <Button size="sm" variant="ghost" onClick={() => setViewingOrder(order)}>View</Button>
+                                        {user.role === 'ADMIN' && (
                                             <select 
                                                 className="text-xs border rounded p-1 bg-transparent"
                                                 value={order.status}
@@ -885,14 +740,52 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                                 <option value="SHIPPED">Shipped</option>
                                                 <option value="DELIVERED">Delivered</option>
                                             </select>
-                                        </td>
-                                    )}
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
             </Card>
+
+            {viewingOrder && (
+                <Modal title={`Order Details #${viewingOrder.id}`} onClose={() => setViewingOrder(null)}>
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center bg-silver-50 dark:bg-silver-800 p-4 rounded-lg">
+                            <div>
+                                <p className="text-sm text-silver-500">Order Date</p>
+                                <p className="font-bold">{viewingOrder.date}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-silver-500">Total Amount</p>
+                                <p className="font-bold text-xl text-blucell-600">{formatPrice(viewingOrder.total)}</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold mb-3 text-sm uppercase tracking-wider text-silver-500">Items Ordered</h4>
+                            <div className="space-y-3">
+                                {viewingOrder.items.map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-4 p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                        <div className="w-16 h-16 bg-silver-100 dark:bg-silver-800 rounded-md overflow-hidden shrink-0">
+                                            <img src={item.image} alt={item.productName} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-silver-900 dark:text-white">{item.productName}</p>
+                                            <p className="text-sm text-silver-500">Quantity: {item.quantity}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end pt-4 border-t border-silver-100 dark:border-silver-800">
+                            <Button onClick={() => setViewingOrder(null)}>Close</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 
@@ -1075,6 +968,220 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
         );
     };
+
+    const renderCMS = () => (
+        <div className="space-y-6 animate-fade-in">
+             <div className="flex gap-4 border-b border-silver-100 dark:border-silver-800 pb-2 overflow-x-auto no-scrollbar">
+                 {['hero', 'features', 'trending', 'cta', 'contact', 'messages', 'settings'].map(tab => (
+                     <button
+                        key={tab}
+                        onClick={() => setActiveCmsTab(tab as any)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                            activeCmsTab === tab 
+                            ? 'bg-blucell-100 text-blucell-700 dark:bg-blucell-900/30 dark:text-blucell-300' 
+                            : 'text-silver-600 dark:text-silver-400 hover:bg-silver-100 dark:hover:bg-silver-800'
+                        }`}
+                     >
+                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                     </button>
+                 ))}
+             </div>
+
+             {activeCmsTab === 'hero' && (
+                 <Card className="p-6 space-y-4">
+                     <h3 className="font-bold text-lg mb-4">Hero Section</h3>
+                     <div className="grid grid-cols-3 gap-4">
+                         <Input label="Title Prefix" value={cmsConfig.hero.titlePrefix} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titlePrefix: e.target.value}})} />
+                         <Input label="Highlight" value={cmsConfig.hero.titleHighlight} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleHighlight: e.target.value}})} />
+                         <Input label="Title Suffix" value={cmsConfig.hero.titleSuffix} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleSuffix: e.target.value}})} />
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                         <Input label="Subtitle" className="col-span-2" value={cmsConfig.hero.subtitle} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, subtitle: e.target.value}})} />
+                         <Input label="Primary CTA" value={cmsConfig.hero.ctaPrimary} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaPrimary: e.target.value}})} />
+                         <Input label="Secondary CTA" value={cmsConfig.hero.ctaSecondary} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaSecondary: e.target.value}})} />
+                     </div>
+                     
+                     <div>
+                         <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-2">Slideshow Images</label>
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                             {cmsConfig.hero.images?.map((img, idx) => (
+                                 <div key={idx} className="relative aspect-video rounded-lg overflow-hidden group">
+                                     <img src={img} alt={`Slide ${idx}`} className="w-full h-full object-cover" />
+                                     <button 
+                                        onClick={() => removeHeroImage(idx)}
+                                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                     >
+                                         <Trash2 className="w-4 h-4" />
+                                     </button>
+                                 </div>
+                             ))}
+                             <label className="border-2 border-dashed border-silver-300 dark:border-silver-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-silver-50 dark:hover:bg-silver-800 transition-colors aspect-video">
+                                <Plus className="w-6 h-6 text-silver-400 mb-1" />
+                                <span className="text-xs text-silver-500">Add Image</span>
+                                <input type="file" className="hidden" accept="image/*" multiple onChange={handleHeroImageUpload} />
+                            </label>
+                         </div>
+                     </div>
+                     <div className="flex justify-end">
+                        <Button onClick={handleSaveCMS}>Save Changes</Button>
+                     </div>
+                 </Card>
+             )}
+
+             {activeCmsTab === 'features' && (
+                 <div className="space-y-6">
+                     {cmsConfig.features.map((feature, idx) => (
+                         <Card key={idx} className="p-6">
+                             <h4 className="font-bold mb-4">Feature {idx + 1}</h4>
+                             <div className="space-y-4">
+                                 <Input label="Title" value={feature.title} onChange={e => {
+                                     const newFeatures = [...cmsConfig.features];
+                                     newFeatures[idx].title = e.target.value;
+                                     setCmsConfig({...cmsConfig, features: newFeatures});
+                                 }} />
+                                 <Input label="Description" value={feature.description} onChange={e => {
+                                     const newFeatures = [...cmsConfig.features];
+                                     newFeatures[idx].description = e.target.value;
+                                     setCmsConfig({...cmsConfig, features: newFeatures});
+                                 }} />
+                             </div>
+                         </Card>
+                     ))}
+                     <div className="flex justify-end">
+                        <Button onClick={handleSaveCMS}>Save Changes</Button>
+                     </div>
+                 </div>
+             )}
+
+             {activeCmsTab === 'trending' && (
+                 <Card className="p-6 space-y-6">
+                     <div className="grid grid-cols-2 gap-4">
+                         <Input label="Section Title" value={cmsConfig.trending.sectionTitle} onChange={e => setCmsConfig({...cmsConfig, trending: {...cmsConfig.trending, sectionTitle: e.target.value}})} />
+                         <Input label="Section Subtitle" value={cmsConfig.trending.sectionSubtitle} onChange={e => setCmsConfig({...cmsConfig, trending: {...cmsConfig.trending, sectionSubtitle: e.target.value}})} />
+                     </div>
+                     
+                     <div className="space-y-6">
+                         {cmsConfig.trending.items.map((item, idx) => (
+                             <div key={idx} className="p-4 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                 <div className="flex gap-4">
+                                     <div className="w-20 h-20 bg-silver-100 rounded-lg overflow-hidden shrink-0">
+                                         <img src={item.image} alt="" className="w-full h-full object-cover" />
+                                     </div>
+                                     <div className="flex-1 space-y-2">
+                                         <Input label="Item Title" value={item.title} onChange={e => {
+                                             const newItems = [...cmsConfig.trending.items];
+                                             newItems[idx].title = e.target.value;
+                                             setCmsConfig({...cmsConfig, trending: {...cmsConfig.trending, items: newItems}});
+                                         }} />
+                                         <Input label="Image URL" value={item.image} onChange={e => {
+                                             const newItems = [...cmsConfig.trending.items];
+                                             newItems[idx].image = e.target.value;
+                                             setCmsConfig({...cmsConfig, trending: {...cmsConfig.trending, items: newItems}});
+                                         }} />
+                                     </div>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                     <div className="flex justify-end">
+                        <Button onClick={handleSaveCMS}>Save Changes</Button>
+                     </div>
+                 </Card>
+             )}
+
+             {activeCmsTab === 'cta' && (
+                 <Card className="p-6 space-y-4">
+                     <Input label="Title" value={cmsConfig.ctaBottom.title} onChange={e => setCmsConfig({...cmsConfig, ctaBottom: {...cmsConfig.ctaBottom, title: e.target.value}})} />
+                     <div>
+                        <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Description</label>
+                        <textarea 
+                            className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm"
+                            value={cmsConfig.ctaBottom.description}
+                            onChange={e => setCmsConfig({...cmsConfig, ctaBottom: {...cmsConfig.ctaBottom, description: e.target.value}})}
+                        />
+                     </div>
+                     <Input label="Button Text" value={cmsConfig.ctaBottom.buttonText} onChange={e => setCmsConfig({...cmsConfig, ctaBottom: {...cmsConfig.ctaBottom, buttonText: e.target.value}})} />
+                     <div className="flex justify-end">
+                        <Button onClick={handleSaveCMS}>Save Changes</Button>
+                     </div>
+                 </Card>
+             )}
+
+             {activeCmsTab === 'contact' && (
+                 <Card className="p-6 space-y-4">
+                     <Input label="Phone" value={contactInfo.phone} onChange={e => onUpdateContactInfo({...contactInfo, phone: e.target.value})} />
+                     <Input label="Email" value={contactInfo.email} onChange={e => onUpdateContactInfo({...contactInfo, email: e.target.value})} />
+                     <Input label="Address" value={contactInfo.address} onChange={e => onUpdateContactInfo({...contactInfo, address: e.target.value})} />
+                     <div className="flex justify-end">
+                        <Button onClick={() => alert('Contact info updated!')}>Save Changes</Button>
+                     </div>
+                 </Card>
+             )}
+
+             {activeCmsTab === 'messages' && (
+                 <Card className="overflow-hidden">
+                     <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-silver-50 dark:bg-silver-800 text-silver-500 font-medium border-b border-silver-100 dark:border-silver-800">
+                                <tr>
+                                    <th className="px-4 py-3">Date</th>
+                                    <th className="px-4 py-3">Name</th>
+                                    <th className="px-4 py-3">Subject</th>
+                                    <th className="px-4 py-3">Message</th>
+                                    <th className="px-4 py-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                                {contactMessages.map(msg => (
+                                    <tr key={msg.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50">
+                                        <td className="px-4 py-3 whitespace-nowrap text-silver-500">{new Date(msg.date).toLocaleDateString()}</td>
+                                        <td className="px-4 py-3">
+                                            <p className="font-medium">{msg.name}</p>
+                                            <p className="text-xs text-silver-500">{msg.email}</p>
+                                        </td>
+                                        <td className="px-4 py-3">{msg.subject}</td>
+                                        <td className="px-4 py-3 max-w-xs truncate text-silver-500">{msg.message}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            <button onClick={() => onDeleteContactMessage(msg.id)} className="text-red-500 hover:text-red-600 transition-colors">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {contactMessages.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-4 py-8 text-center text-silver-500">No messages yet.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                     </div>
+                 </Card>
+             )}
+
+             {activeCmsTab === 'settings' && (
+                 <Card className="p-6 space-y-6">
+                     <div>
+                         <h4 className="font-bold mb-4">Platform Settings</h4>
+                         <div className="flex items-center gap-6">
+                             <div className="w-24 h-24 rounded-lg bg-silver-100 dark:bg-silver-800 flex items-center justify-center border border-silver-200 dark:border-silver-700 overflow-hidden">
+                                 {platformLogo ? (
+                                     <img src={platformLogo} alt="Logo" className="w-full h-full object-contain" />
+                                 ) : (
+                                     <span className="text-xs text-silver-400">No Logo</span>
+                                 )}
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-2">Upload Logo</label>
+                                 <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-sm text-silver-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blucell-50 file:text-blucell-700 hover:file:bg-blucell-100 dark:file:bg-blucell-900/30 dark:file:text-blucell-300" />
+                                 <p className="text-xs text-silver-500 mt-2">Recommended size: 256x256px. PNG or JPG.</p>
+                             </div>
+                         </div>
+                     </div>
+                 </Card>
+             )}
+        </div>
+    );
 
     return (
         <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] pt-6 gap-6 container mx-auto px-4 pb-12">

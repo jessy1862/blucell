@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui';
-import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones, Info, Mail } from 'lucide-react';
+import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones, Info, Mail, ArrowRight } from 'lucide-react';
 import { LandingPageConfig, ContactInfo } from '../types';
 import { DEFAULT_LANDING_CONFIG } from '../constants';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -52,8 +52,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
 
   // Fallback if images array is empty (shouldn't happen with updated defaults)
   const heroImages = hero.images && hero.images.length > 0 ? hero.images : [
-      'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000'
+      'https://images.unsplash.com/photo-1597872258083-ef52741e8696?auto=format&fit=crop&q=80&w=1000'
   ];
+
+  const nextSlideIndex = (currentSlide + 1) % heroImages.length;
+
+  const manualNextSlide = () => {
+      setCurrentSlide((prev) => (prev + 1) % heroImages.length);
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -104,45 +110,48 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
             </div>
           </div>
           
-          <div className="relative hidden lg:block h-[600px] w-full">
-             {/* Slideshow Container */}
-             <div className="absolute top-16 right-0 w-[28rem] h-[32rem] rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 z-10 group hover:scale-[1.02] transition-transform duration-500">
-                {heroImages.map((img, idx) => (
-                    <div 
-                        key={idx}
-                        className={`absolute inset-0 transition-opacity duration-1000 ${idx === currentSlide ? 'opacity-100' : 'opacity-0'}`}
-                    >
-                         <img 
-                            src={img} 
-                            className="object-cover w-full h-full"
-                            alt={`Slide ${idx + 1}`} 
-                        />
-                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+          <div className="relative hidden lg:block h-[550px] w-full">
+             {/* Double Slide Container - Responsive Widths */}
+             <div className="absolute top-8 right-0 w-full max-w-2xl h-full flex gap-6 items-center justify-end">
+                {/* Primary Slide (Current) */}
+                <div className="relative w-7/12 h-full rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 z-20 transition-all duration-700 ease-in-out transform hover:scale-[1.02]">
+                    <img 
+                        src={heroImages[currentSlide]} 
+                        className="object-cover w-full h-full animate-scale-up"
+                        alt={`Slide ${currentSlide + 1}`} 
+                        key={currentSlide} // Force re-render for animation
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+                    <div className="absolute bottom-0 inset-x-0 p-6">
+                        <div className="flex items-center gap-2 mb-2 text-blucell-400">
+                            <Gamepad2 className="w-5 h-5" />
+                            <span className="text-xs font-bold uppercase tracking-wider">Featured</span>
+                        </div>
+                        <p className="text-white font-bold text-xl">Top Quality Tech</p>
                     </div>
-                ))}
-                
-                {/* Overlay Text/Graphics */}
-                <div className="absolute bottom-0 inset-x-0 p-8 z-20">
-                    <div className="flex items-center gap-2 mb-2 text-blucell-400">
-                        <Gamepad2 className="w-5 h-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Featured Gear</span>
-                    </div>
-                    <p className="text-white font-bold text-2xl leading-tight">Experience <br/>Next-Gen Tech</p>
-                    
-                    {/* Slide Indicators */}
-                    <div className="flex gap-2 mt-4">
-                        {heroImages.map((_, idx) => (
-                            <div 
-                                key={idx} 
-                                className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-8 bg-blucell-500' : 'w-2 bg-slate-600'}`}
-                            ></div>
-                        ))}
+                </div>
+
+                {/* Secondary Slide (Next) - Offset */}
+                <div 
+                    className="relative w-5/12 h-[80%] rounded-3xl overflow-hidden shadow-xl border-4 border-slate-800 bg-slate-900 z-10 opacity-70 cursor-pointer hover:opacity-100 transition-all duration-300 group"
+                    onClick={manualNextSlide}
+                >
+                     <img 
+                        src={heroImages[nextSlideIndex]} 
+                        className="object-cover w-full h-full"
+                        alt={`Slide ${nextSlideIndex + 1}`} 
+                        key={nextSlideIndex}
+                    />
+                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <div className="bg-white/20 backdrop-blur-md p-3 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all">
+                            <ArrowRight className="w-6 h-6 text-white" />
+                        </div>
                     </div>
                 </div>
              </div>
              
              {/* Floating Badge (Static Overlay) */}
-             <div className="absolute bottom-32 -left-4 bg-slate-900/90 backdrop-blur-md p-4 pr-6 rounded-2xl shadow-xl z-30 flex items-center gap-4 border border-slate-700 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default animate-bounce-slow">
+             <div className="absolute bottom-24 left-4 xl:left-0 bg-slate-900/90 backdrop-blur-md p-4 pr-6 rounded-2xl shadow-xl z-30 flex items-center gap-4 border border-slate-700 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default animate-bounce-slow">
                 <div className="p-3 bg-blucell-600 rounded-xl shadow-lg shadow-blucell-600/20">
                     <Wrench className="w-6 h-6 text-white" />
                 </div>

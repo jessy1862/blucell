@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { Card, Button, Input, SectionTitle } from '../components/ui';
 import { Mail, Phone, MapPin, Send, MessageSquare, HelpCircle } from 'lucide-react';
 import { ContactInfo } from '../types';
 import { DEFAULT_CONTACT_INFO } from '../constants';
+import { db, collection, addDoc } from '../services/firebase';
 
 interface ContactUsProps {
     contactInfo?: ContactInfo;
@@ -17,16 +19,31 @@ export const ContactUs: React.FC<ContactUsProps> = ({ contactInfo = DEFAULT_CONT
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    if (onSendMessage) {
-        onSendMessage(form);
-    }
+    try {
+        // Save to Firestore
+        await addDoc(collection(db, "contact_messages"), {
+            name: form.name,
+            email: form.email,
+            subject: form.subject,
+            message: form.message,
+            date: new Date().toISOString(),
+            read: false
+        });
+        
+        // Update local state (for admin view/UI consistency)
+        if (onSendMessage) {
+            onSendMessage(form);
+        }
 
-    setIsSubmitting(false);
-    setSubmitted(true);
-    setForm({ name: '', email: '', subject: '', message: '' });
+        setSubmitted(true);
+        setForm({ name: '', email: '', subject: '', message: '' });
+    } catch (error) {
+        console.error("Error sending message: ", error);
+        // Ideally show a toast error here
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (

@@ -6,7 +6,10 @@ export const MOCK_USER: User = {
   name: 'Alex Sterling',
   email: 'alex@example.com',
   role: 'CUSTOMER', // Change this to 'FIXER' or 'ADMIN' to test other views
-  avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256'
+  avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
+  phone: '+1 (555) 010-9988',
+  address: '42 Silicon Ave, Tech City, CA 94000',
+  bio: 'Tech enthusiast and gadget collector. Always looking for the latest drones.'
 };
 
 export const MOCK_PRODUCTS: Product[] = [
@@ -174,11 +177,59 @@ export const MOCK_ORDERS: Order[] = [
 ];
 
 export const MOCK_ALL_USERS: User[] = [
-    { id: 'u1', name: 'Alex Sterling', email: 'alex@example.com', role: 'CUSTOMER', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256' },
-    { id: 'u2', name: 'Jesica R', email: 'jesicar1100@gmail.com', role: 'ADMIN', avatar: 'https://ui-avatars.com/api/?name=Jesica+R&background=random', availabilityStatus: 'ONLINE' },
-    { id: 'f1', name: 'Mike Ross', email: 'mike@blucell.com', role: 'FIXER', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256', availabilityStatus: 'ONLINE' },
-    { id: 'f2', name: 'Sarah Jane', email: 'sarah@blucell.com', role: 'FIXER', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256', availabilityStatus: 'BUSY' },
-    { id: 'u3', name: 'John Doe', email: 'john@example.com', role: 'CUSTOMER', avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=random' },
+    { 
+        id: 'u1', 
+        name: 'Alex Sterling', 
+        email: 'alex@example.com', 
+        role: 'CUSTOMER', 
+        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
+        phone: '+1 (555) 010-9988',
+        address: '42 Silicon Ave, Tech City, CA',
+        bio: 'Tech enthusiast. I break things, you fix them.'
+    },
+    { 
+        id: 'u2', 
+        name: 'Jesica R', 
+        email: 'jesicar1100@gmail.com', 
+        role: 'ADMIN', 
+        avatar: 'https://ui-avatars.com/api/?name=Jesica+R&background=random', 
+        availabilityStatus: 'ONLINE',
+        phone: '+1 (555) 999-0000',
+        address: 'BLUCELL HQ, San Francisco, CA',
+        bio: 'Platform Administrator and Lead Tech.'
+    },
+    { 
+        id: 'f1', 
+        name: 'Mike Ross', 
+        email: 'mike@blucell.com', 
+        role: 'FIXER', 
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256', 
+        availabilityStatus: 'ONLINE',
+        phone: '+1 (555) 234-5678',
+        address: 'Mobile Unit 4, Downtown',
+        bio: 'Certified Apple & Samsung Repair Technician. 5 years experience.'
+    },
+    { 
+        id: 'f2', 
+        name: 'Sarah Jane', 
+        email: 'sarah@blucell.com', 
+        role: 'FIXER', 
+        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256', 
+        availabilityStatus: 'BUSY',
+        phone: '+1 (555) 876-5432',
+        address: 'North Hills Repair Center',
+        bio: 'Specialist in micro-soldering and logic board repairs.'
+    },
+    { 
+        id: 'u3', 
+        name: 'John Doe', 
+        email: 'john@example.com', 
+        role: 'CUSTOMER', 
+        avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=random',
+        phone: '+1 (555) 111-2222',
+        address: '789 Pine St, Suburbia, NY',
+        bio: 'Just looking for good deals on gaming gear.'
+    },
 ];
 
 export const MOCK_ALL_ORDERS: Order[] = [
@@ -239,6 +290,8 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     ctaPrimary: 'Shop Gadgets',
     ctaSecondary: 'Fix My Device',
     images: [
+        'https://images.unsplash.com/photo-1597872258083-ef52741e8696?auto=format&fit=crop&q=80&w=1000', // Phone Repair (Internal)
+        'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&q=80&w=1000', // Repair Tools/Kit
         'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000', // Gaming
         'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000', // Phone
         'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&q=80&w=1000', // Laptop
