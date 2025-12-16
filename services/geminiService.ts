@@ -4,7 +4,7 @@ import { ChatMessage } from "../types";
 
 // Initialize with the environment variable directly.
 // The app assumes the API key is present for full functionality.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
 
 export const analyzeRepairRequest = async (device: string, description: string, images: any[] = []): Promise<string> => {
   try {
