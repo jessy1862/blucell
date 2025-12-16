@@ -238,8 +238,12 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     subtitle: 'BLUCELL is the premier ecosystem for buying premium gadgets and booking expert repairs instantly.',
     ctaPrimary: 'Shop Gadgets',
     ctaSecondary: 'Fix My Device',
-    imageForeground: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000',
-    imageBackground: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000'
+    images: [
+        'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000', // Gaming
+        'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000', // Phone
+        'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&q=80&w=1000', // Laptop
+        'https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?auto=format&fit=crop&q=80&w=1000'  // Drone
+    ]
   },
   features: [
     { title: "Certified Fixers", description: "Every technician is vetted and expert-level." },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
@@ -83,3 +83,36 @@ export const SectionTitle: React.FC<{ title: string; subtitle?: string }> = ({ t
     {subtitle && <p className="mt-2 text-lg text-silver-600 dark:text-silver-400">{subtitle}</p>}
   </div>
 );
+
+export const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose}></div>
+    <div className="relative bg-white dark:bg-silver-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-scale-up border border-silver-200 dark:border-silver-800">
+      <div className="flex justify-between items-center p-4 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-800/50">
+        <h3 className="font-bold text-lg text-silver-900 dark:text-white">{title}</h3>
+        <button onClick={onClose} className="p-1 hover:bg-silver-200 dark:hover:bg-silver-700 rounded-full transition-colors">
+           <X className="w-5 h-5 text-silver-500" />
+        </button>
+      </div>
+      <div className="p-6 max-h-[80vh] overflow-y-auto">
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+export const StatusIndicator: React.FC<{ status: string }> = ({ status }) => {
+    const colors: Record<string, string> = {
+        ONLINE: 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]',
+        OFFLINE: 'bg-slate-400',
+        BUSY: 'bg-red-500',
+        AVAILABLE: 'bg-green-500'
+    };
+    const color = colors[status] || 'bg-slate-400';
+    return (
+        <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${color}`}></span>
+            <span className="text-xs font-bold uppercase tracking-wider text-silver-600 dark:text-silver-400">{status}</span>
+        </div>
+    );
+};

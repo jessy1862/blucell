@@ -3,22 +3,23 @@ import { Card, Button, Input, SectionTitle, Badge } from '../components/ui';
 import { analyzeRepairRequest } from '../services/geminiService';
 import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { RepairJob, User } from '../types';
 
 interface RepairBookingProps {
   formatPrice?: (price: number) => string;
+  user?: User;
+  onBookRepair?: (repair: RepairJob) => void;
 }
 
-export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) => `$${p}` }) => {
+export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) => `$${p}`, user, onBookRepair }) => {
   const [step, setStep] = useState(1);
   const [device, setDevice] = useState('');
   const [issue, setIssue] = useState('');
   const [images, setImages] = useState<{file: File, preview: string}[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
+  const [newRepairId, setNewRepairId] = useState('');
   const navigate = useNavigate();
-
-  // Mock ID generation for new booking
-  const newRepairId = `repair-${Date.now()}`;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -76,7 +77,26 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
   };
 
   const handleBook = () => {
-    setStep(3);
+      const id = `repair-${Date.now()}`;
+      setNewRepairId(id);
+      
+      const newRepair: RepairJob = {
+          id: id,
+          deviceId: `dev-${Date.now()}`,
+          deviceType: device,
+          issueDescription: issue,
+          status: 'PENDING',
+          customerId: user ? user.id : 'guest', // In a real app we'd force login
+          dateBooked: new Date().toISOString().split('T')[0],
+          aiDiagnosis: aiDiagnosis || undefined,
+          estimatedCost: 0 // Placeholder
+      };
+
+      if (onBookRepair) {
+          onBookRepair(newRepair);
+      }
+
+      setStep(3);
   };
 
   return (
@@ -115,7 +135,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Issue Description</label>
               <textarea 
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm h-32 focus:outline-none focus:ring-2 focus:ring-blucell-500"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm h-32 focus:outline-none focus:ring-2 focus:ring-blucell-500 text-slate-900 dark:text-white"
                 placeholder="Describe what's wrong. e.g. Dropped in water, screen flickering, not charging..."
                 value={issue}
                 onChange={(e) => setIssue(e.target.value)}
@@ -212,24 +232,18 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
             </div>
             <h2 className="text-2xl font-bold mb-4">Booking Confirmed!</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-md mx-auto">
-                A courier has been dispatched to pick up your <strong>{device}</strong>. Your assigned technician is <strong>Mike Ross</strong>.
+                A courier has been dispatched to pick up your <strong>{device}</strong>. A technician will be assigned shortly.
             </p>
             
             <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-xl mb-8 border border-slate-200 dark:border-slate-800 max-w-md mx-auto">
                 <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256" alt="Mike Ross" className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-700" />
-                        <div className="text-left">
-                            <p className="font-bold text-sm">Mike Ross</p>
-                            <p className="text-xs text-green-500 flex items-center gap-1">● Online</p>
-                        </div>
-                    </div>
+                     <p className="font-bold text-sm">Repair ID: {newRepairId}</p>
                     <Button size="sm" onClick={() => navigate(`/dashboard?chatRepairId=${newRepairId}`)}>
                         <MessageSquare className="w-4 h-4 mr-2" /> Chat Now
                     </Button>
                 </div>
                 <p className="text-xs text-slate-500 text-left">
-                    "I've received your ticket for the {device}. I'll assess it as soon as it arrives at the lab."
+                    "We've received your ticket for the {device}. You can track the status in your dashboard."
                 </p>
             </div>
 

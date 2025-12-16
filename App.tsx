@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
@@ -13,9 +14,10 @@ import { AboutUs } from './pages/AboutUs';
 import { CartDrawer } from './components/CartDrawer';
 import { SupportChatWidget } from './components/SupportChatWidget';
 import { Button } from './components/ui';
-import { MOCK_USER, MOCK_PRODUCTS, MOCK_CHAT_SESSIONS, DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO } from './constants';
-import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage } from './types';
+import { MOCK_USER, MOCK_PRODUCTS, MOCK_CHAT_SESSIONS, DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, MOCK_ALL_USERS, MOCK_ALL_ORDERS, MOCK_REPAIRS } from './constants';
+import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage, Order, RepairJob } from './types';
 import { ShoppingBag, User as UserIcon, Menu, X, Wrench, LogOut, Sun, Moon, Settings, Star, Globe, Coins } from 'lucide-react';
+import { generateChatResponse } from './services/geminiService';
 
 interface NavbarProps {
   user: User | null;
@@ -268,9 +270,78 @@ const Footer = () => (
 );
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  // --- State Initialization with Persistence ---
+  
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('blucell_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [isDark, setIsDark] = useState(false);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    const saved = localStorage.getItem('blucell_cart');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [products, setProducts] = useState<Product[]>(() => {
+      const saved = localStorage.getItem('blucell_products');
+      return saved ? JSON.parse(saved) : MOCK_PRODUCTS;
+  });
+
+  // Global State for Admin/Functional features
+  const [allUsers, setAllUsers] = useState<User[]>(() => {
+      const saved = localStorage.getItem('blucell_all_users');
+      return saved ? JSON.parse(saved) : MOCK_ALL_USERS;
+  });
+
+  const [allOrders, setAllOrders] = useState<Order[]>(() => {
+      const saved = localStorage.getItem('blucell_all_orders');
+      return saved ? JSON.parse(saved) : MOCK_ALL_ORDERS;
+  });
+
+  const [allRepairs, setAllRepairs] = useState<RepairJob[]>(() => {
+      const saved = localStorage.getItem('blucell_all_repairs');
+      return saved ? JSON.parse(saved) : MOCK_REPAIRS;
+  });
+
+
+  const [landingPageConfig, setLandingPageConfig] = useState<LandingPageConfig>(() => {
+      const saved = localStorage.getItem('blucell_landing_config');
+      if (saved) {
+          const parsed = JSON.parse(saved);
+          // Migration check for old hero config
+          if (!parsed.hero.images) {
+              parsed.hero.images = [
+                  'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000',
+                  'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000'
+              ];
+              // Optional: Remove old keys if present
+              delete parsed.hero.imageForeground;
+              delete parsed.hero.imageBackground;
+          }
+          return parsed;
+      }
+      return DEFAULT_LANDING_CONFIG;
+  });
+
+  const [contactInfo, setContactInfo] = useState<ContactInfo>(() => {
+      const saved = localStorage.getItem('blucell_contact_info');
+      return saved ? JSON.parse(saved) : DEFAULT_CONTACT_INFO;
+  });
+
+  // Support sessions (Mock data + persistence)
+  const [supportSessions, setSupportSessions] = useState<ChatSession[]>(() => {
+      const saved = localStorage.getItem('blucell_chat_sessions');
+      return saved ? JSON.parse(saved) : MOCK_CHAT_SESSIONS;
+  });
+  
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>(() => {
+      const saved = localStorage.getItem('blucell_contact_messages');
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  // In-memory state for non-critical or simple lists
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [platformLogo, setPlatformLogo] = useState(localStorage.getItem('platform_logo') || '');
   
@@ -278,19 +349,8 @@ export default function App() {
   const [currency, setCurrency] = useState<Currency>((localStorage.getItem('currency') as Currency) || 'USD');
   const [language, setLanguage] = useState<Language>((localStorage.getItem('language') as Language) || 'EN');
 
-  // Products State
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
 
-  // Chat State
-  const [supportSessions, setSupportSessions] = useState<ChatSession[]>(MOCK_CHAT_SESSIONS);
-
-  // Landing Page State
-  const [landingPageConfig, setLandingPageConfig] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
-
-  // Contact Info & Messages State
-  const [contactInfo, setContactInfo] = useState<ContactInfo>(DEFAULT_CONTACT_INFO);
-  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
-
+  // --- Effects for Persistence ---
   useEffect(() => {
     if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       setIsDark(true);
@@ -305,6 +365,50 @@ export default function App() {
     localStorage.setItem('currency', currency);
     localStorage.setItem('language', language);
   }, [currency, language]);
+
+  useEffect(() => {
+      if (user) localStorage.setItem('blucell_user', JSON.stringify(user));
+      else localStorage.removeItem('blucell_user');
+  }, [user]);
+
+  useEffect(() => {
+      localStorage.setItem('blucell_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+      localStorage.setItem('blucell_products', JSON.stringify(products));
+  }, [products]);
+  
+  useEffect(() => {
+      localStorage.setItem('blucell_all_users', JSON.stringify(allUsers));
+  }, [allUsers]);
+
+  useEffect(() => {
+      localStorage.setItem('blucell_all_orders', JSON.stringify(allOrders));
+  }, [allOrders]);
+  
+  useEffect(() => {
+      localStorage.setItem('blucell_all_repairs', JSON.stringify(allRepairs));
+  }, [allRepairs]);
+
+  useEffect(() => {
+      localStorage.setItem('blucell_landing_config', JSON.stringify(landingPageConfig));
+  }, [landingPageConfig]);
+  
+  useEffect(() => {
+      localStorage.setItem('blucell_contact_info', JSON.stringify(contactInfo));
+  }, [contactInfo]);
+
+  useEffect(() => {
+      localStorage.setItem('blucell_chat_sessions', JSON.stringify(supportSessions));
+  }, [supportSessions]);
+  
+  useEffect(() => {
+      localStorage.setItem('blucell_contact_messages', JSON.stringify(contactMessages));
+  }, [contactMessages]);
+
+
+  // --- Handlers ---
 
   const toggleTheme = () => {
     if (isDark) {
@@ -345,6 +449,13 @@ export default function App() {
 
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
+    // If logging in a new user not in mock db (from sign up), add to allUsers
+    setAllUsers(prev => {
+        if (!prev.find(u => u.id === loggedInUser.id)) {
+            return [...prev, loggedInUser];
+        }
+        return prev;
+    });
   };
 
   const handleLogout = () => {
@@ -354,8 +465,20 @@ export default function App() {
 
   const handleUpdateUser = (updatedData: Partial<User>) => {
     if (user) {
-      setUser({ ...user, ...updatedData });
+      const updatedUser = { ...user, ...updatedData };
+      setUser(updatedUser);
+      // Update in global list
+      setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     }
+  };
+  
+  // Admin User Management Handlers
+  const handleAddUser = (newUser: User) => {
+      setAllUsers(prev => [newUser, ...prev]);
+  };
+  
+  const handleUpdateUserAdmin = (updatedUser: User) => {
+      setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
   };
 
   const handleUpdatePlatformSettings = (settings: { logo?: string }) => {
@@ -402,6 +525,23 @@ export default function App() {
   };
 
   const clearCart = () => setCart([]);
+  
+  // --- Order & Repair Handlers ---
+  const handlePlaceOrder = (order: Order) => {
+      setAllOrders(prev => [order, ...prev]);
+  };
+
+  const handleUpdateOrder = (orderId: string, status: Order['status']) => {
+      setAllOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+  };
+
+  const handleBookRepair = (repair: RepairJob) => {
+      setAllRepairs(prev => [repair, ...prev]);
+  };
+
+  const handleUpdateRepair = (repair: RepairJob) => {
+      setAllRepairs(prev => prev.map(r => r.id === repair.id ? repair : r));
+  };
 
   // --- Contact Functions ---
   const handleNewContactMessage = (msg: Omit<ContactMessage, 'id' | 'date' | 'read'>) => {
@@ -413,48 +553,85 @@ export default function App() {
     };
     setContactMessages(prev => [newMessage, ...prev]);
   };
+  
+  const handleDeleteContactMessage = (id: string) => {
+      setContactMessages(prev => prev.filter(msg => msg.id !== id));
+  };
 
   // --- Chat Functions ---
 
-  const handleSendSupportMessage = (text: string) => {
+  const handleSendSupportMessage = async (text: string) => {
     if (!user) return;
 
-    setSupportSessions(prev => {
-        const existingSessionIndex = prev.findIndex(s => s.userId === user.id);
-        const newMessage: ChatMessage = {
-            id: Date.now().toString(),
-            senderId: user.id,
-            text,
-            timestamp: new Date(),
-            isSystem: false
-        };
+    let updatedSessions = [...supportSessions];
+    let sessionIndex = updatedSessions.findIndex(s => s.userId === user.id);
+    let currentHistory: ChatMessage[] = [];
 
-        if (existingSessionIndex >= 0) {
-            const updatedSessions = [...prev];
-            const session = updatedSessions[existingSessionIndex];
-            session.messages.push(newMessage);
-            session.lastMessage = text;
-            session.lastMessageTime = new Date();
-            session.unreadCount += 1; // Assuming unread for admin
-            // Move to top
-            updatedSessions.splice(existingSessionIndex, 1);
-            updatedSessions.unshift(session);
-            return updatedSessions;
-        } else {
-            const newSession: ChatSession = {
-                id: `s-${Date.now()}`,
-                userId: user.id,
-                userName: user.name,
-                userAvatar: user.avatar,
-                messages: [newMessage],
-                unreadCount: 1,
-                lastMessage: text,
-                lastMessageTime: new Date(),
-                status: 'OPEN'
-            };
-            return [newSession, ...prev];
-        }
-    });
+    const newUserMsg: ChatMessage = {
+        id: Date.now().toString(),
+        senderId: user.id,
+        text,
+        timestamp: new Date(),
+        isSystem: false
+    };
+
+    if (sessionIndex >= 0) {
+        updatedSessions[sessionIndex].messages.push(newUserMsg);
+        updatedSessions[sessionIndex].lastMessage = text;
+        updatedSessions[sessionIndex].lastMessageTime = new Date();
+        updatedSessions[sessionIndex].unreadCount += 1; // Unread for admin
+        updatedSessions[sessionIndex].status = 'OPEN'; // Re-open if closed
+        
+        // Move to top
+        const session = updatedSessions[sessionIndex];
+        updatedSessions.splice(sessionIndex, 1);
+        updatedSessions.unshift(session);
+        
+        currentHistory = session.messages;
+    } else {
+        const newSession: ChatSession = {
+            id: `s-${Date.now()}`,
+            userId: user.id,
+            userName: user.name,
+            userAvatar: user.avatar,
+            messages: [newUserMsg],
+            unreadCount: 1,
+            lastMessage: text,
+            lastMessageTime: new Date(),
+            status: 'OPEN'
+        };
+        updatedSessions = [newSession, ...updatedSessions];
+        currentHistory = newSession.messages;
+    }
+
+    setSupportSessions(updatedSessions);
+
+    // AI Response Integration
+    try {
+        const aiReplyText = await generateChatResponse(currentHistory, text);
+        
+        // Add AI response to session
+        setSupportSessions(prev => {
+             const newSessions = [...prev];
+             const idx = newSessions.findIndex(s => s.userId === user.id);
+             if (idx >= 0) {
+                 const aiMsg: ChatMessage = {
+                     id: (Date.now() + 1).toString(),
+                     senderId: 'support-bot', // distinct ID for bot
+                     text: aiReplyText,
+                     timestamp: new Date(),
+                     isSystem: false
+                 };
+                 newSessions[idx].messages.push(aiMsg);
+                 newSessions[idx].lastMessage = aiReplyText;
+                 newSessions[idx].lastMessageTime = new Date();
+             }
+             return newSessions;
+        });
+
+    } catch (error) {
+        console.error("AI Chat Error", error);
+    }
   };
 
   const handleAdminReply = (sessionId: string, text: string) => {
@@ -472,7 +649,7 @@ export default function App() {
                   messages: [...session.messages, newMessage],
                   lastMessage: text,
                   lastMessageTime: new Date(),
-                  unreadCount: 0 // Admin replied, so we assume they read it. In a real app, unread logic is per user.
+                  unreadCount: 0 // Admin replied
               };
           }
           return session;
@@ -521,10 +698,19 @@ export default function App() {
                user ? <BestSellers addToCart={addToCart} products={products} formatPrice={formatPrice} /> : <Navigate to="/auth" />
             } />
             <Route path="/repair" element={
-              user ? <RepairBooking formatPrice={formatPrice} /> : <Navigate to="/auth" />
+              user ? <RepairBooking 
+                        formatPrice={formatPrice} 
+                        user={user}
+                        onBookRepair={handleBookRepair}
+                     /> : <Navigate to="/auth" />
             } />
             <Route path="/checkout" element={
-              user ? <Checkout cart={cart} clearCart={clearCart} formatPrice={formatPrice} /> : <Navigate to="/auth" />
+              user ? <Checkout 
+                        cart={cart} 
+                        clearCart={clearCart} 
+                        formatPrice={formatPrice}
+                        onPlaceOrder={handlePlaceOrder} 
+                     /> : <Navigate to="/auth" />
             } />
             <Route path="/auth" element={
               user ? <Navigate to="/dashboard" /> : <Auth onLogin={handleLogin} />
@@ -546,6 +732,15 @@ export default function App() {
                         contactInfo={contactInfo}
                         onUpdateContactInfo={setContactInfo}
                         contactMessages={contactMessages}
+                        onDeleteContactMessage={handleDeleteContactMessage}
+                        // Admin specific props
+                        allUsers={allUsers}
+                        onAddUser={handleAddUser}
+                        onUpdateUserAdmin={handleUpdateUserAdmin}
+                        allOrders={allOrders}
+                        onUpdateOrder={handleUpdateOrder}
+                        allRepairs={allRepairs}
+                        onUpdateRepair={handleUpdateRepair}
                      /> : <Navigate to="/auth" />
             } />
             <Route path="/settings" element={

@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui';
 import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones, Info, Mail } from 'lucide-react';
 import { LandingPageConfig, ContactInfo } from '../types';
@@ -17,6 +18,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
   const { hero, features, trending, ctaBottom } = config;
   const navigate = useNavigate();
   const location = useLocation();
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   const FeatureIcons = [ShieldCheck, Truck, Cpu, Wrench];
 
@@ -30,14 +32,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
   useEffect(() => {
     if (location.state && (location.state as any).scrollTo) {
         const id = (location.state as any).scrollTo;
-        // Small timeout to ensure DOM is ready if navigating from another page
         setTimeout(() => {
             scrollToSection(id);
         }, 100);
-        // Clean up state
         window.history.replaceState({}, document.title);
     }
   }, [location]);
+
+  // Slideshow Timer
+  useEffect(() => {
+      if (!hero.images || hero.images.length <= 1) return;
+      
+      const timer = setInterval(() => {
+          setCurrentSlide((prev) => (prev + 1) % hero.images.length);
+      }, 5000); // Change every 5 seconds
+
+      return () => clearInterval(timer);
+  }, [hero.images]);
+
+  // Fallback if images array is empty (shouldn't happen with updated defaults)
+  const heroImages = hero.images && hero.images.length > 0 ? hero.images : [
+      'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000'
+  ];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -89,44 +105,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
           </div>
           
           <div className="relative hidden lg:block h-[600px] w-full">
-             {/* Background Image (PS5 in mock) */}
-             <div className="absolute top-16 right-0 w-80 h-[28rem] rounded-2xl overflow-hidden shadow-2xl border border-slate-700 transform rotate-6 hover:rotate-2 transition-all duration-500 z-10 group bg-slate-900">
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent z-10 opacity-80"></div>
-                <img 
-                    src={hero.imageBackground} 
-                    className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700"
-                    alt="Background Device" 
-                />
-                <div className="absolute bottom-6 left-6 z-20">
-                    <div className="flex items-center gap-2 mb-1 text-blucell-400">
-                        <Gamepad2 className="w-5 h-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Gaming</span>
+             {/* Slideshow Container */}
+             <div className="absolute top-16 right-0 w-[28rem] h-[32rem] rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 z-10 group hover:scale-[1.02] transition-transform duration-500">
+                {heroImages.map((img, idx) => (
+                    <div 
+                        key={idx}
+                        className={`absolute inset-0 transition-opacity duration-1000 ${idx === currentSlide ? 'opacity-100' : 'opacity-0'}`}
+                    >
+                         <img 
+                            src={img} 
+                            className="object-cover w-full h-full"
+                            alt={`Slide ${idx + 1}`} 
+                        />
+                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
                     </div>
-                    <span className="text-white font-bold text-xl leading-tight block">Next-Gen <br/>Consoles</span>
-                </div>
-             </div>
-
-             {/* Foreground Image (Phone in mock) */}
-             <div className="absolute top-8 left-8 w-72 h-[30rem] rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-slate-800 bg-slate-900 transform -rotate-6 hover:-rotate-2 transition-all duration-500 z-20 group hover:shadow-blucell-500/20">
-                 <img 
-                    src={hero.imageForeground} 
-                    className="object-cover w-full h-full opacity-90 group-hover:opacity-100 transition-opacity" 
-                    alt="Foreground Device" 
-                />
-                {/* Simulated Notch/Dynamic Island */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-30"></div>
+                ))}
                 
-                <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
-                    <div className="flex items-center gap-2 mb-1 text-blucell-400">
-                        <Smartphone className="w-5 h-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Mobile</span>
+                {/* Overlay Text/Graphics */}
+                <div className="absolute bottom-0 inset-x-0 p-8 z-20">
+                    <div className="flex items-center gap-2 mb-2 text-blucell-400">
+                        <Gamepad2 className="w-5 h-5" />
+                        <span className="text-xs font-bold uppercase tracking-wider">Featured Gear</span>
                     </div>
-                    <p className="text-white font-bold text-2xl">Premium <br/>Devices</p>
+                    <p className="text-white font-bold text-2xl leading-tight">Experience <br/>Next-Gen Tech</p>
+                    
+                    {/* Slide Indicators */}
+                    <div className="flex gap-2 mt-4">
+                        {heroImages.map((_, idx) => (
+                            <div 
+                                key={idx} 
+                                className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-8 bg-blucell-500' : 'w-2 bg-slate-600'}`}
+                            ></div>
+                        ))}
+                    </div>
                 </div>
              </div>
              
-             {/* Floating Repair Badge */}
-             <div className="absolute bottom-24 right-20 bg-slate-900/90 backdrop-blur-md p-4 pr-6 rounded-2xl shadow-xl z-30 flex items-center gap-4 border border-slate-700 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default">
+             {/* Floating Badge (Static Overlay) */}
+             <div className="absolute bottom-32 -left-4 bg-slate-900/90 backdrop-blur-md p-4 pr-6 rounded-2xl shadow-xl z-30 flex items-center gap-4 border border-slate-700 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default animate-bounce-slow">
                 <div className="p-3 bg-blucell-600 rounded-xl shadow-lg shadow-blucell-600/20">
                     <Wrench className="w-6 h-6 text-white" />
                 </div>

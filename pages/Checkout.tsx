@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CartItem } from '../types';
+import { CartItem, Order } from '../types';
 import { Card, Button, Input, SectionTitle } from '../components/ui';
 import { ShieldCheck, CreditCard, Truck, Check, Wallet, Bitcoin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,19 +8,40 @@ interface CheckoutProps {
   cart: CartItem[];
   clearCart: () => void;
   formatPrice: (price: number) => string;
+  onPlaceOrder?: (order: Order) => void;
 }
 
-export const Checkout: React.FC<CheckoutProps> = ({ cart, clearCart, formatPrice }) => {
+export const Checkout: React.FC<CheckoutProps> = ({ cart, clearCart, formatPrice, onPlaceOrder }) => {
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal' | 'crypto'>('card');
+  const [newOrderId, setNewOrderId] = useState('');
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 2000)); // Mock payment
+    
+    const id = `ord-${Math.floor(Math.random() * 10000)}`;
+    setNewOrderId(id);
+
+    if (onPlaceOrder) {
+        const order: Order = {
+            id: id,
+            date: new Date().toISOString().split('T')[0],
+            total: total * 1.08, // Adding simplified tax
+            status: 'PROCESSING',
+            items: cart.map(item => ({
+                productName: item.name,
+                quantity: item.quantity,
+                image: item.image
+            }))
+        };
+        onPlaceOrder(order);
+    }
+
     clearCart();
     setIsProcessing(false);
     setStep(3); // Success
@@ -44,7 +65,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ cart, clearCart, formatPrice
             </div>
             <h2 className="text-3xl font-bold mb-4">Order Confirmed!</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-8">
-                Thank you for your purchase. Your order #BLU-{Math.floor(Math.random() * 10000)} has been placed successfully.
+                Thank you for your purchase. Your order #{newOrderId} has been placed successfully.
             </p>
             <Button onClick={() => navigate('/dashboard')}>Track Order</Button>
         </Card>
@@ -146,7 +167,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ cart, clearCart, formatPrice
                                 <div className="flex gap-4 pt-4">
                                     <Button variant="ghost" onClick={() => setStep(1)} type="button">Back</Button>
                                     <Button type="submit" className="flex-1" isLoading={isProcessing}>
-                                        Pay {formatPrice(total)}
+                                        Pay {formatPrice(total * 1.08)}
                                     </Button>
                                 </div>
                             </form>

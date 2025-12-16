@@ -85,8 +85,7 @@ export interface LandingPageConfig {
     subtitle: string;
     ctaPrimary: string;
     ctaSecondary: string;
-    imageForeground: string;
-    imageBackground: string;
+    images: string[]; // Updated for slideshow
   };
   features: {
     title: string;
