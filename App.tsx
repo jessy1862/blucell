@@ -45,6 +45,18 @@ const Navbar: React.FC<NavbarProps> = ({
     ? "bg-slate-950/80 backdrop-blur-md border-b border-white/10 text-white" 
     : "bg-silver-light/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-silver-200 dark:border-slate-800 text-slate-900 dark:text-white";
 
+  const handleNavClick = (id: string) => {
+    if (location.pathname === '/') {
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    } else {
+        navigate('/', { state: { scrollTo: id } });
+    }
+    setIsOpen(false);
+  };
+
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${navClass}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -175,8 +187,8 @@ const Navbar: React.FC<NavbarProps> = ({
             <Link to="/shop" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Shop</Link>
             <Link to="/bestsellers" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Best Sellers</Link>
             <Link to="/repair" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Repair</Link>
-            <Link to="/about" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">About Us</Link>
-            <Link to="/contact" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Contact</Link>
+            <button onClick={() => handleNavClick('about')} className="w-full text-left block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">About Us</button>
+            <button onClick={() => handleNavClick('contact')} className="w-full text-left block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-800">Contact</button>
             
             <div className="flex items-center gap-4 px-3 py-2 mt-2 border-t border-slate-800">
                 <select 
@@ -497,7 +509,11 @@ export default function App() {
         />
         <main className="flex-grow pt-16">
           <Routes>
-            <Route path="/" element={<LandingPage config={landingPageConfig} />} />
+            <Route path="/" element={<LandingPage 
+                config={landingPageConfig} 
+                contactInfo={contactInfo}
+                onSendMessage={handleNewContactMessage}
+            />} />
             <Route path="/shop" element={
               user ? <Marketplace addToCart={addToCart} products={products} formatPrice={formatPrice} /> : <Navigate to="/auth" />
             } />

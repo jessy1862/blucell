@@ -1,18 +1,43 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from '../components/ui';
-import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones } from 'lucide-react';
-import { LandingPageConfig } from '../types';
+import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones, Info, Mail } from 'lucide-react';
+import { LandingPageConfig, ContactInfo } from '../types';
 import { DEFAULT_LANDING_CONFIG } from '../constants';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ContactUs } from './ContactUs';
+import { AboutUs } from './AboutUs';
 
 interface LandingPageProps {
     config?: LandingPageConfig;
+    contactInfo?: ContactInfo;
+    onSendMessage?: (msg: { name: string, email: string, subject: string, message: string }) => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDING_CONFIG }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDING_CONFIG, contactInfo, onSendMessage }) => {
   const { hero, features, trending, ctaBottom } = config;
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const FeatureIcons = [ShieldCheck, Truck, Cpu, Wrench];
-  const CategoryIcons = [null, Headphones, Watch, Camera]; // Mapping for trending items if needed, or we just rely on images
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    if (location.state && (location.state as any).scrollTo) {
+        const id = (location.state as any).scrollTo;
+        // Small timeout to ensure DOM is ready if navigating from another page
+        setTimeout(() => {
+            scrollToSection(id);
+        }, 100);
+        // Clean up state
+        window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -31,20 +56,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
             <p className="text-xl text-slate-300 max-w-lg">
               {hero.subtitle}
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button 
-                onClick={() => window.location.hash = '#/shop'}
-                className="text-lg px-8 py-4 rounded-full"
-              >
-                {hero.ctaPrimary}
-              </Button>
-              <Button 
-                onClick={() => window.location.hash = '#/repair'}
-                variant="outline" 
-                className="text-lg px-8 py-4 rounded-full border-slate-600 text-white hover:bg-white/10"
-              >
-                {hero.ctaSecondary}
-              </Button>
+            
+            <div className="flex flex-col gap-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    onClick={() => navigate('/shop')}
+                    className="text-lg px-8 py-4 rounded-full"
+                  >
+                    {hero.ctaPrimary}
+                  </Button>
+                  <Button 
+                    onClick={() => navigate('/repair')}
+                    variant="outline" 
+                    className="text-lg px-8 py-4 rounded-full border-slate-600 text-white hover:bg-white/10"
+                  >
+                    {hero.ctaSecondary}
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-6 pl-2">
+                    <button onClick={() => scrollToSection('about')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium group">
+                        <Info className="w-4 h-4 group-hover:text-blucell-400 transition-colors" />
+                        About Us
+                    </button>
+                    <div className="w-1 h-1 rounded-full bg-slate-700"></div>
+                    <button onClick={() => scrollToSection('contact')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium group">
+                        <Mail className="w-4 h-4 group-hover:text-blucell-400 transition-colors" />
+                        Contact Support
+                    </button>
+                </div>
             </div>
           </div>
           
@@ -130,7 +170,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
               <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-3">{trending.sectionTitle}</h2>
               <p className="text-slate-500 dark:text-slate-400 text-lg">{trending.sectionSubtitle}</p>
             </div>
-            <Button variant="outline" onClick={() => window.location.hash = '#/shop'} className="hidden md:flex items-center">
+            <Button variant="outline" onClick={() => navigate('/shop')} className="hidden md:flex items-center">
               View All <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
@@ -199,9 +239,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
           </div>
           
           <div className="mt-8 text-center md:hidden">
-            <Button variant="outline" onClick={() => window.location.hash = '#/shop'} className="w-full">View All Categories</Button>
+            <Button variant="outline" onClick={() => navigate('/shop')} className="w-full">View All Categories</Button>
           </div>
         </div>
+      </section>
+
+      {/* About Section (Integrated) */}
+      <section id="about" className="border-t border-slate-200 dark:border-slate-800">
+        <AboutUs />
+      </section>
+
+      {/* Contact Section */}
+      <section className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800" id="contact">
+        <ContactUs contactInfo={contactInfo} onSendMessage={onSendMessage} />
       </section>
 
       {/* CTA Section */}
@@ -212,7 +262,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
         <div className="container mx-auto px-6 text-center relative z-10">
             <h2 className="text-4xl font-bold text-white mb-6">{ctaBottom.title}</h2>
             <p className="text-blucell-100 text-lg mb-8 max-w-2xl mx-auto">{ctaBottom.description}</p>
-            <Button className="bg-white text-blucell-700 hover:bg-blucell-50 px-8 py-3 text-lg rounded-full shadow-xl" onClick={() => window.location.hash = '#/auth'}>
+            <Button className="bg-white text-blucell-700 hover:bg-blucell-50 px-8 py-3 text-lg rounded-full shadow-xl" onClick={() => navigate('/auth')}>
                 {ctaBottom.buttonText}
             </Button>
         </div>

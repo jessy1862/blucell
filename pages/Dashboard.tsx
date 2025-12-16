@@ -503,7 +503,7 @@ const AdminDashboard = ({
         </button>
     );
 
-    const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
+    const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children?: React.ReactNode }) => (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
             <div className="relative bg-silver-surface-light dark:bg-silver-surface-dark rounded-xl shadow-2xl max-w-lg w-full p-6 animate-scale-up border border-silver-200 dark:border-silver-800 max-h-[90vh] overflow-y-auto">
