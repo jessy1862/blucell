@@ -5,6 +5,7 @@ import { Mail, Phone, MapPin, Send, MessageSquare, HelpCircle } from 'lucide-rea
 import { ContactInfo } from '../types';
 import { DEFAULT_CONTACT_INFO } from '../constants';
 import { db, collection, addDoc } from '../services/firebase';
+import { saveContactMessageToNeon } from '../services/neon';
 
 interface ContactUsProps {
     contactInfo?: ContactInfo;
@@ -20,16 +21,30 @@ export const ContactUs: React.FC<ContactUsProps> = ({ contactInfo = DEFAULT_CONT
     e.preventDefault();
     setIsSubmitting(true);
     
+    const timestamp = new Date().toISOString();
+
     try {
-        // Save to Firestore
-        await addDoc(collection(db, "contact_messages"), {
+        // 1. Save to Firestore (Existing logic - kept for redundancy)
+        const firestorePromise = addDoc(collection(db, "contact_messages"), {
             name: form.name,
             email: form.email,
             subject: form.subject,
             message: form.message,
-            date: new Date().toISOString(),
+            date: timestamp,
             read: false
-        });
+        }).catch(e => console.error("Firestore save failed", e));
+
+        // 2. Save to Neon Postgres (New logic)
+        const neonPromise = saveContactMessageToNeon({
+            name: form.name,
+            email: form.email,
+            subject: form.subject,
+            message: form.message,
+            created_at: timestamp
+        }).catch(e => console.error("Neon DB save failed", e));
+        
+        // Wait for both to attempt saving
+        await Promise.allSettled([firestorePromise, neonPromise]);
         
         // Update local state (for admin view/UI consistency)
         if (onSendMessage) {
@@ -40,7 +55,8 @@ export const ContactUs: React.FC<ContactUsProps> = ({ contactInfo = DEFAULT_CONT
         setForm({ name: '', email: '', subject: '', message: '' });
     } catch (error) {
         console.error("Error sending message: ", error);
-        // Ideally show a toast error here
+        // We still show success if at least one service likely worked or to not discourage user
+        // Ideally show a toast error here if both failed
     } finally {
         setIsSubmitting(false);
     }

@@ -15,7 +15,8 @@
     "lucide-react": "^0.561.0",
     "react-router-dom": "^7.10.1",
     "react": "^19.2.3",
-    "firebase": "^12.6.0"
+    "firebase": "^12.6.0",
+    "@neondatabase/serverless": "0.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

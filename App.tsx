@@ -14,11 +14,29 @@ import { AboutUs } from './pages/AboutUs';
 import { CartDrawer } from './components/CartDrawer';
 import { SupportChatWidget } from './components/SupportChatWidget';
 import { Button } from './components/ui';
-import { MOCK_PRODUCTS, MOCK_CHAT_SESSIONS, DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, MOCK_ALL_USERS, MOCK_ALL_ORDERS, MOCK_REPAIRS } from './constants';
-import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage, Order, RepairJob } from './types';
-import { ShoppingBag, User as UserIcon, Menu, X, Wrench, LogOut, Sun, Moon, Settings, Star, Globe, Coins } from 'lucide-react';
+import { DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, DEFAULT_TEAM } from './constants';
+import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage, Order, RepairJob, TeamMember } from './types';
+import { ShoppingBag, User as UserIcon, Menu, X, Wrench, LogOut, Sun, Moon, Settings, Star, Globe, Coins, ShieldCheck } from 'lucide-react';
 import { generateChatResponse } from './services/geminiService';
 import { auth, onAuthStateChanged, signOut } from './services/firebase';
+import { 
+    getContactMessagesFromNeon, 
+    getUsersFromNeon, 
+    getFixersFromNeon,
+    getUserFromNeon,
+    saveRepairToNeon, 
+    getRepairsFromNeon, 
+    saveOrderToNeon, 
+    getOrdersFromNeon, 
+    saveProductToNeon, 
+    getProductsFromNeon, 
+    deleteProductFromNeon, 
+    saveChatSessionToNeon, 
+    getChatSessionsFromNeon, 
+    saveUserToNeon,
+    getRepairChatsFromNeon,
+    saveRepairChatToNeon
+} from './services/neon';
 
 interface NavbarProps {
   user: User | null;
@@ -278,45 +296,21 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [products, setProducts] = useState<Product[]>(() => {
-      const saved = localStorage.getItem('blucell_products');
-      return saved ? JSON.parse(saved) : MOCK_PRODUCTS;
-  });
+  // Start with empty products, fetch from DB
+  const [products, setProducts] = useState<Product[]>([]);
 
   // Global State for Admin/Functional features
-  const [allUsers, setAllUsers] = useState<User[]>(() => {
-      const saved = localStorage.getItem('blucell_all_users');
-      return saved ? JSON.parse(saved) : MOCK_ALL_USERS;
-  });
-
-  const [allOrders, setAllOrders] = useState<Order[]>(() => {
-      const saved = localStorage.getItem('blucell_all_orders');
-      return saved ? JSON.parse(saved) : MOCK_ALL_ORDERS;
-  });
-
-  const [allRepairs, setAllRepairs] = useState<RepairJob[]>(() => {
-      const saved = localStorage.getItem('blucell_all_repairs');
-      return saved ? JSON.parse(saved) : MOCK_REPAIRS;
-  });
-
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [allRepairs, setAllRepairs] = useState<RepairJob[]>([]);
+  
+  // Specific for Repair Booking
+  const [fixers, setFixers] = useState<User[]>([]);
 
   const [landingPageConfig, setLandingPageConfig] = useState<LandingPageConfig>(() => {
       const saved = localStorage.getItem('blucell_landing_config');
       if (saved) {
-          const parsed = JSON.parse(saved);
-          // Migration check for old hero config
-          if (!parsed.hero.images) {
-              parsed.hero.images = [
-                  'https://images.unsplash.com/photo-1597872258083-ef52741e8696?auto=format&fit=crop&q=80&w=1000',
-                  'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&q=80&w=1000',
-                  'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=1000',
-                  'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&q=80&w=1000'
-              ];
-              // Optional: Remove old keys if present
-              delete parsed.hero.imageForeground;
-              delete parsed.hero.imageBackground;
-          }
-          return parsed;
+          return JSON.parse(saved);
       }
       return DEFAULT_LANDING_CONFIG;
   });
@@ -326,16 +320,18 @@ export default function App() {
       return saved ? JSON.parse(saved) : DEFAULT_CONTACT_INFO;
   });
 
-  // Support sessions (Mock data + persistence)
-  const [supportSessions, setSupportSessions] = useState<ChatSession[]>(() => {
-      const saved = localStorage.getItem('blucell_chat_sessions');
-      return saved ? JSON.parse(saved) : MOCK_CHAT_SESSIONS;
+  const [team, setTeam] = useState<TeamMember[]>(() => {
+      const saved = localStorage.getItem('blucell_team');
+      return saved ? JSON.parse(saved) : DEFAULT_TEAM;
   });
+
+  // Support sessions
+  const [supportSessions, setSupportSessions] = useState<ChatSession[]>([]);
   
-  const [contactMessages, setContactMessages] = useState<ContactMessage[]>(() => {
-      const saved = localStorage.getItem('blucell_contact_messages');
-      return saved ? JSON.parse(saved) : [];
-  });
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
+
+  // Repair Chats - Dictionary mapping repairId -> messages
+  const [repairChats, setRepairChats] = useState<Record<string, ChatMessage[]>>({});
 
   // In-memory state for non-critical or simple lists
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -357,20 +353,138 @@ export default function App() {
     }
   }, []);
 
+  // Fetch Products on Mount (Public)
+  useEffect(() => {
+      getProductsFromNeon().then(dbProducts => {
+          if (dbProducts.length > 0) {
+              const formattedProducts = dbProducts.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  price: Number(p.price),
+                  category: p.category,
+                  image: p.image,
+                  rating: Number(p.rating),
+                  reviews: Number(p.reviews),
+                  description: p.description,
+                  specs: JSON.parse(p.specs || '{}'),
+                  status: p.status,
+                  isBestSeller: p.is_best_seller
+              }));
+              setProducts(formattedProducts);
+          }
+      });
+  }, []);
+
+  // Fetch Chat Sessions on Mount (Public/Admin filtered later)
+  useEffect(() => {
+      getChatSessionsFromNeon().then(dbSessions => {
+          if (dbSessions.length > 0) {
+              const formattedSessions = dbSessions.map((s: any) => ({
+                  id: s.id,
+                  userId: s.user_id,
+                  userName: s.user_name,
+                  userAvatar: s.user_avatar,
+                  messages: JSON.parse(s.messages || '[]').map((msg: any) => ({
+                      ...msg,
+                      timestamp: new Date(msg.timestamp)
+                  })),
+                  unreadCount: s.unread_count,
+                  lastMessage: s.last_message,
+                  lastMessageTime: new Date(s.last_message_time),
+                  status: s.status
+              }));
+              setSupportSessions(formattedSessions);
+          }
+      });
+  }, []);
+
+  // Fetch Repair Chats on Mount
+  useEffect(() => {
+      getRepairChatsFromNeon().then(dbChats => {
+          if (dbChats.length > 0) {
+              const chatMap: Record<string, ChatMessage[]> = {};
+              dbChats.forEach((chat: any) => {
+                  try {
+                      const messages = JSON.parse(chat.messages || '[]').map((msg: any) => ({
+                          ...msg,
+                          timestamp: new Date(msg.timestamp)
+                      }));
+                      chatMap[chat.repair_id] = messages;
+                  } catch (e) {
+                      console.error("Error parsing repair chat messages", e);
+                  }
+              });
+              setRepairChats(chatMap);
+          }
+      });
+  }, []);
+
+  // Fetch Available Fixers (For Booking)
+  useEffect(() => {
+      getFixersFromNeon().then(dbFixers => {
+          if (dbFixers.length > 0) {
+               const formattedFixers = dbFixers.map((u: any) => ({
+                  id: u.id,
+                  name: u.name,
+                  email: u.email,
+                  role: u.role as any,
+                  avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
+                  availabilityStatus: u.availability_status as any || 'ONLINE',
+                  bio: u.bio
+              }));
+              setFixers(formattedFixers);
+          }
+      });
+  }, []);
+
   // Firebase Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && firebaseUser.emailVerified) {
-        // Simple role assignment based on email for testing, defaults to CUSTOMER
-        const role = firebaseUser.email?.includes('admin') ? 'ADMIN' : 
-                     firebaseUser.email?.includes('fixer') ? 'FIXER' : 'CUSTOMER';
+        
+        let role: 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' = 'CUSTOMER';
+        let availabilityStatus = 'OFFLINE';
+        let bio = '';
+
+        // 1. Try fetching from DB to respect Admin-appointed roles and persisted data
+        const dbUser = await getUserFromNeon(firebaseUser.uid);
+        
+        if (dbUser) {
+            role = dbUser.role as any;
+            bio = dbUser.bio || '';
+            availabilityStatus = dbUser.availability_status || 'OFFLINE';
+        } else {
+            // 2. Fallback logic for initial creation or missing DB record
+            if (firebaseUser.email === 'jesicar1100@gmail.com') {
+                role = 'SUPER_ADMIN';
+            } else if (firebaseUser.email?.includes('admin')) {
+                role = 'ADMIN';
+            } else if (firebaseUser.email?.includes('fixer')) {
+                role = 'FIXER';
+                availabilityStatus = 'ONLINE'; // Default online for new fixers
+            }
+            
+            // Auto-save to Neon if missing
+            await saveUserToNeon({
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || 'User',
+                email: firebaseUser.email || '',
+                role: role,
+                avatar: firebaseUser.photoURL || '',
+                bio: bio,
+                availability_status: availabilityStatus,
+                created_at: new Date().toISOString()
+            });
+        }
         
         const appUser: User = {
           id: firebaseUser.uid,
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
           email: firebaseUser.email || '',
           role: role,
-          avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'User'}&background=random`
+          avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'User'}&background=random`,
+          availabilityStatus: availabilityStatus as any,
+          bio: bio
         };
         setUser(appUser);
         
@@ -379,7 +493,8 @@ export default function App() {
             if (!prev.find(u => u.id === appUser.id)) {
                 return [...prev, appUser];
             }
-            return prev;
+            // Update existing user in list if role changed
+            return prev.map(u => u.id === appUser.id ? appUser : u);
         });
       } else {
         setUser(null);
@@ -387,6 +502,81 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Fetch Admin Data
+  useEffect(() => {
+    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
+        // Fetch Contact Messages
+        getContactMessagesFromNeon().then(msgs => {
+            if (msgs.length > 0) {
+                const formatted = msgs.map((m: any) => ({
+                    id: m.id.toString(),
+                    name: m.name,
+                    email: m.email,
+                    subject: m.subject,
+                    message: m.message,
+                    date: new Date(m.created_at),
+                    read: false
+                }));
+                setContactMessages(formatted);
+            }
+        });
+
+        // Fetch Users
+        getUsersFromNeon().then(dbUsers => {
+            if (dbUsers.length > 0) {
+                const formattedUsers = dbUsers.map((u: any) => ({
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    role: u.role as any,
+                    avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`,
+                    phone: '', 
+                    address: '',
+                    bio: u.bio || '',
+                    availabilityStatus: u.availability_status as any || 'OFFLINE'
+                }));
+                setAllUsers(formattedUsers);
+            }
+        });
+
+        // Fetch Orders
+        getOrdersFromNeon().then(dbOrders => {
+            if (dbOrders.length > 0) {
+                const formattedOrders = dbOrders.map((o: any) => ({
+                    id: o.id,
+                    date: o.date,
+                    total: Number(o.total),
+                    status: o.status as any,
+                    items: JSON.parse(o.items || '[]')
+                }));
+                setAllOrders(formattedOrders);
+            }
+        });
+    }
+    
+    // Always fetch repairs for Fixers too so they can see open pool
+    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'FIXER') {
+         // Fetch Repair Jobs
+        getRepairsFromNeon().then(dbRepairs => {
+            if (dbRepairs.length > 0) {
+                const formattedRepairs = dbRepairs.map((r: any) => ({
+                    id: r.id,
+                    deviceId: r.device_id,
+                    deviceType: r.device_type,
+                    issueDescription: r.issue_description,
+                    status: r.status as any,
+                    customerId: r.customer_id,
+                    fixerId: r.fixer_id,
+                    dateBooked: r.date_booked,
+                    estimatedCost: r.estimated_cost ? Number(r.estimated_cost) : undefined,
+                    aiDiagnosis: r.ai_diagnosis
+                }));
+                setAllRepairs(formattedRepairs);
+            }
+        });
+    }
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('currency', currency);
@@ -398,22 +588,6 @@ export default function App() {
   }, [cart]);
 
   useEffect(() => {
-      localStorage.setItem('blucell_products', JSON.stringify(products));
-  }, [products]);
-  
-  useEffect(() => {
-      localStorage.setItem('blucell_all_users', JSON.stringify(allUsers));
-  }, [allUsers]);
-
-  useEffect(() => {
-      localStorage.setItem('blucell_all_orders', JSON.stringify(allOrders));
-  }, [allOrders]);
-  
-  useEffect(() => {
-      localStorage.setItem('blucell_all_repairs', JSON.stringify(allRepairs));
-  }, [allRepairs]);
-
-  useEffect(() => {
       localStorage.setItem('blucell_landing_config', JSON.stringify(landingPageConfig));
   }, [landingPageConfig]);
   
@@ -422,14 +596,9 @@ export default function App() {
   }, [contactInfo]);
 
   useEffect(() => {
-      localStorage.setItem('blucell_chat_sessions', JSON.stringify(supportSessions));
-  }, [supportSessions]);
+      localStorage.setItem('blucell_team', JSON.stringify(team));
+  }, [team]);
   
-  useEffect(() => {
-      localStorage.setItem('blucell_contact_messages', JSON.stringify(contactMessages));
-  }, [contactMessages]);
-
-
   // --- Handlers ---
 
   const toggleTheme = () => {
@@ -479,12 +648,24 @@ export default function App() {
     setCart([]);
   };
 
-  const handleUpdateUser = (updatedData: Partial<User>) => {
+  const handleUpdateUser = async (updatedData: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...updatedData };
       setUser(updatedUser);
       // Update in global list
       setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+      
+      // Update in DB
+      await saveUserToNeon({
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          avatar: updatedUser.avatar,
+          bio: updatedUser.bio,
+          availability_status: updatedUser.availabilityStatus,
+          created_at: new Date().toISOString() // Or keep original
+      });
     }
   };
   
@@ -495,6 +676,16 @@ export default function App() {
   
   const handleUpdateUserAdmin = (updatedUser: User) => {
       setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      saveUserToNeon({
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar: updatedUser.avatar,
+        bio: updatedUser.bio,
+        availability_status: updatedUser.availabilityStatus,
+        created_at: new Date().toISOString()
+      });
   };
 
   const handleUpdatePlatformSettings = (settings: { logo?: string }) => {
@@ -506,14 +697,43 @@ export default function App() {
 
   const handleAddProduct = (product: Product) => {
     setProducts(prev => [product, ...prev]);
+    // Save to Neon
+    saveProductToNeon({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category: product.category,
+        image: product.image,
+        rating: product.rating,
+        reviews: product.reviews,
+        description: product.description,
+        specs: JSON.stringify(product.specs),
+        status: product.status,
+        is_best_seller: product.isBestSeller || false
+    });
   };
 
   const handleUpdateProduct = (product: Product) => {
     setProducts(prev => prev.map(p => p.id === product.id ? product : p));
+    // Update Neon
+    saveProductToNeon({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category: product.category,
+        image: product.image,
+        rating: product.rating,
+        reviews: product.reviews,
+        description: product.description,
+        specs: JSON.stringify(product.specs),
+        status: product.status,
+        is_best_seller: product.isBestSeller || false
+    });
   };
 
   const handleDeleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
+    deleteProductFromNeon(id);
   };
 
   const addToCart = (product: Product) => {
@@ -545,18 +765,66 @@ export default function App() {
   // --- Order & Repair Handlers ---
   const handlePlaceOrder = (order: Order) => {
       setAllOrders(prev => [order, ...prev]);
+      
+      // Save to Neon
+      saveOrderToNeon({
+          id: order.id,
+          date: order.date,
+          total: order.total,
+          status: order.status,
+          items: JSON.stringify(order.items)
+      });
   };
 
   const handleUpdateOrder = (orderId: string, status: Order['status']) => {
       setAllOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+      // In a real app, update status in DB here too
+      // Ideally we would have updateOrderInNeon
+      const order = allOrders.find(o => o.id === orderId);
+      if (order) {
+          saveOrderToNeon({
+            id: order.id,
+            date: order.date,
+            total: order.total,
+            status: status,
+            items: JSON.stringify(order.items)
+          });
+      }
   };
 
   const handleBookRepair = (repair: RepairJob) => {
       setAllRepairs(prev => [repair, ...prev]);
+      
+      // Save to Neon
+      saveRepairToNeon({
+          id: repair.id,
+          device_id: repair.deviceId,
+          device_type: repair.deviceType,
+          issue_description: repair.issueDescription,
+          status: repair.status,
+          customer_id: repair.customerId,
+          fixer_id: repair.fixerId,
+          date_booked: repair.dateBooked,
+          estimated_cost: repair.estimatedCost || 0,
+          ai_diagnosis: repair.aiDiagnosis
+      });
   };
 
   const handleUpdateRepair = (repair: RepairJob) => {
       setAllRepairs(prev => prev.map(r => r.id === repair.id ? repair : r));
+      // Save to Neon
+      saveRepairToNeon({
+          id: repair.id,
+          device_id: repair.deviceId,
+          device_type: repair.deviceType,
+          issue_description: repair.issueDescription,
+          status: repair.status,
+          customer_id: repair.customerId,
+          fixer_id: repair.fixerId,
+          date_booked: repair.dateBooked,
+          estimated_cost: repair.estimatedCost || 0,
+          ai_diagnosis: repair.aiDiagnosis
+      });
   };
 
   // --- Contact Functions ---
@@ -572,9 +840,24 @@ export default function App() {
   
   const handleDeleteContactMessage = (id: string) => {
       setContactMessages(prev => prev.filter(msg => msg.id !== id));
+      // Implement DB delete if needed
   };
 
   // --- Chat Functions ---
+
+  const saveSession = (session: ChatSession) => {
+       saveChatSessionToNeon({
+          id: session.id,
+          user_id: session.userId,
+          user_name: session.userName,
+          user_avatar: session.userAvatar,
+          messages: JSON.stringify(session.messages),
+          unread_count: session.unreadCount,
+          last_message: session.lastMessage,
+          last_message_time: session.lastMessageTime.toISOString(),
+          status: session.status
+       });
+  };
 
   const handleSendSupportMessage = async (text: string) => {
     if (!user) return;
@@ -582,6 +865,7 @@ export default function App() {
     let updatedSessions = [...supportSessions];
     let sessionIndex = updatedSessions.findIndex(s => s.userId === user.id);
     let currentHistory: ChatMessage[] = [];
+    let currentSession: ChatSession | null = null;
 
     const newUserMsg: ChatMessage = {
         id: Date.now().toString(),
@@ -602,6 +886,7 @@ export default function App() {
         const session = updatedSessions[sessionIndex];
         updatedSessions.splice(sessionIndex, 1);
         updatedSessions.unshift(session);
+        currentSession = session;
         
         currentHistory = session.messages;
     } else {
@@ -617,10 +902,12 @@ export default function App() {
             status: 'OPEN'
         };
         updatedSessions = [newSession, ...updatedSessions];
+        currentSession = newSession;
         currentHistory = newSession.messages;
     }
 
     setSupportSessions(updatedSessions);
+    if (currentSession) saveSession(currentSession);
 
     // AI Response Integration
     try {
@@ -641,6 +928,7 @@ export default function App() {
                  newSessions[idx].messages.push(aiMsg);
                  newSessions[idx].lastMessage = aiReplyText;
                  newSessions[idx].lastMessageTime = new Date();
+                 saveSession(newSessions[idx]);
              }
              return newSessions;
         });
@@ -660,13 +948,15 @@ export default function App() {
                   timestamp: new Date(),
                   isSystem: false
               };
-              return {
+              const updatedSession = {
                   ...session,
                   messages: [...session.messages, newMessage],
                   lastMessage: text,
                   lastMessageTime: new Date(),
                   unreadCount: 0 // Admin replied
               };
+              saveSession(updatedSession);
+              return updatedSession;
           }
           return session;
       }));
@@ -692,9 +982,36 @@ export default function App() {
               status: 'OPEN'
           };
           setSupportSessions(prev => [newSession, ...prev]);
+          saveSession(newSession);
           return newSessionId;
       }
       return '';
+  };
+
+  const handleSendRepairMessage = (repairId: string, text: string, senderId: string) => {
+      setRepairChats(prev => {
+          const currentMessages = prev[repairId] || [];
+          const newMessage: ChatMessage = {
+              id: Date.now().toString(),
+              senderId: senderId,
+              text: text,
+              timestamp: new Date(),
+              isSystem: false
+          };
+          const updatedMessages = [...currentMessages, newMessage];
+          
+          // Save to Neon
+          saveRepairChatToNeon({
+              repair_id: repairId,
+              messages: JSON.stringify(updatedMessages),
+              last_message_at: newMessage.timestamp.toISOString()
+          });
+
+          return {
+              ...prev,
+              [repairId]: updatedMessages
+          };
+      });
   };
 
   // Get current user's session messages for the widget
@@ -731,10 +1048,11 @@ export default function App() {
                 config={landingPageConfig} 
                 contactInfo={contactInfo}
                 onSendMessage={handleNewContactMessage}
+                team={team}
             />} />
             <Route path="/shop" element={<Marketplace addToCart={addToCart} products={products} formatPrice={formatPrice} />} />
             <Route path="/bestsellers" element={<BestSellers addToCart={addToCart} products={products} formatPrice={formatPrice} />} />
-            <Route path="/repair" element={<RepairBooking formatPrice={formatPrice} user={user || undefined} onBookRepair={handleBookRepair} />} />
+            <Route path="/repair" element={<RepairBooking formatPrice={formatPrice} user={user || undefined} onBookRepair={handleBookRepair} fixers={fixers} />} />
             <Route path="/checkout" element={
               user ? <Checkout 
                         cart={cart} 
@@ -774,19 +1092,24 @@ export default function App() {
                         allRepairs={allRepairs}
                         onUpdateRepair={handleUpdateRepair}
                         platformLogo={platformLogo} // Pass the logo here
+                        team={team}
+                        onUpdateTeam={setTeam}
+                        // Repair Chat
+                        repairChats={repairChats}
+                        onSendRepairMessage={handleSendRepairMessage}
                      /> : <Navigate to="/auth" />
             } />
             <Route path="/settings" element={
               user ? <ProfileSettings user={user} onUpdate={handleUpdateUser} onLogout={handleLogout} /> : <Navigate to="/auth" />
             } />
             <Route path="/contact" element={<ContactUs contactInfo={contactInfo} onSendMessage={handleNewContactMessage} />} />
-            <Route path="/about" element={<AboutUs />} />
+            <Route path="/about" element={<AboutUs team={team} />} />
           </Routes>
         </main>
         <Footer />
         
         {/* Support Chat Widget - Only for Customers/Fixers */}
-        {user && user.role !== 'ADMIN' && (
+        {user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && (
             <SupportChatWidget 
                 messages={userMessages}
                 onSendMessage={handleSendSupportMessage}

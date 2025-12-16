@@ -1,283 +1,177 @@
 
-import { Product, RepairJob, User, Order, ChatSession, LandingPageConfig, ContactInfo } from './types';
+import { Product, RepairJob, User, Order, ChatSession, LandingPageConfig, ContactInfo, TeamMember } from './types';
 
-export const MOCK_USER: User = {
-  id: 'u1',
-  name: 'Alex Sterling',
-  email: 'alex@example.com',
-  role: 'CUSTOMER', // Change this to 'FIXER' or 'ADMIN' to test other views
-  avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
-  phone: '+1 (555) 010-9988',
-  address: '42 Silicon Ave, Tech City, CA 94000',
-  bio: 'Tech enthusiast and gadget collector. Always looking for the latest drones.'
-};
+// Initialize with empty real-time states
+export const MOCK_USER: User | null = null;
 
-export const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 'p1',
-    name: 'Xenon Ultra Phone 15',
-    category: 'Phone',
-    price: 999,
-    rating: 4.8,
-    reviews: 124,
-    image: 'https://images.unsplash.com/photo-1616348436168-de43ad0db179?auto=format&fit=crop&q=80&w=800',
-    description: 'The ultimate smartphone experience with AI-enhanced photography and all-day battery life.',
-    specs: { screen: '6.7" OLED', battery: '5000mAh', processor: 'X1 Chip' },
-    status: 'IN_STOCK',
-    isBestSeller: true
-  },
-  {
-    id: 'p2',
-    name: 'Nebula Laptop Pro',
-    category: 'Laptop',
-    price: 1899,
-    rating: 4.9,
-    reviews: 89,
-    image: 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&q=80&w=800',
-    description: 'Power meets portability. Designed for creators who need performance on the go.',
-    specs: { cpu: 'M3 Max', ram: '32GB', storage: '1TB SSD' },
-    status: 'IN_STOCK',
-    isBestSeller: false
-  },
-  {
-    id: 'p3',
-    name: 'SonicBlast 360',
-    category: 'Audio',
-    price: 249,
-    rating: 4.5,
-    reviews: 210,
-    image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?auto=format&fit=crop&q=80&w=800',
-    description: 'Immersive 360-degree sound for your home or outdoor adventures.',
-    specs: { battery: '24hr', connectivity: 'BT 5.3', waterproof: 'IP67' },
-    status: 'IN_STOCK',
-    isBestSeller: true
-  },
-  {
-    id: 'p4',
-    name: 'SkyHawk Drone X',
-    category: 'Drone',
-    price: 1299,
-    rating: 4.7,
-    reviews: 56,
-    image: 'https://images.unsplash.com/photo-1579829366248-204fe8413f31?auto=format&fit=crop&q=80&w=800',
-    description: 'Professional aerial photography made easy with obstacle avoidance.',
-    specs: { range: '10km', camera: '4K 60fps', flightTime: '45min' },
-    status: 'OUT_OF_STOCK',
-    isBestSeller: false
-  },
+export const MOCK_PRODUCTS: Product[] = [];
+
+export const MOCK_REPAIRS: RepairJob[] = [];
+
+export const MOCK_ORDERS: Order[] = [];
+
+export const MOCK_ALL_USERS: User[] = [];
+
+export const MOCK_ALL_ORDERS: Order[] = [];
+
+export const MOCK_CHAT_SESSIONS: ChatSession[] = [];
+
+export const SEED_PRODUCTS: Product[] = [
     {
-    id: 'p5',
-    name: 'GameStation 5',
-    category: 'Gaming',
-    price: 499,
-    rating: 4.9,
-    reviews: 3400,
-    image: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=800',
-    description: 'Next-gen gaming is here with ultra-fast loading and ray tracing.',
-    specs: { storage: '825GB', output: '8K HDR', fps: '120Hz' },
-    status: 'IN_STOCK',
-    isBestSeller: true
-  },
-   {
-    id: 'p6',
-    name: 'ProLens 85mm',
-    category: 'Camera',
-    price: 899,
-    rating: 4.6,
-    reviews: 42,
-    image: 'https://images.unsplash.com/photo-1617005082133-548c4dd27f35?auto=format&fit=crop&q=80&w=800',
-    description: 'Portrait perfection in a compact lens. Sharpness edge to edge.',
-    specs: { aperture: 'f/1.4', mount: 'E-Mount', stabilization: 'Optical' },
-    status: 'IN_STOCK',
-    isBestSeller: false
-  },
-  {
-    id: 'p7',
-    name: 'Echo Noise-Canceling',
-    category: 'Audio',
-    price: 349,
-    rating: 4.7,
-    reviews: 156,
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=800',
-    description: 'Silence the world and lose yourself in the music.',
-    specs: { type: 'Over-ear', battery: '30hr', anc: 'Adaptive' },
-    status: 'IN_STOCK',
-    isBestSeller: true
-  },
-  {
-    id: 'p8',
-    name: 'Chrono Smartwatch',
-    category: 'Phone',
-    price: 399,
-    rating: 4.5,
-    reviews: 88,
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800',
-    description: 'Track your health, notifications, and life on your wrist.',
-    specs: { screen: 'OLED Always-On', waterproof: '50m', sensors: 'HR, SpO2' },
-    status: 'IN_STOCK',
-    isBestSeller: false
-  }
-];
-
-export const MOCK_REPAIRS: RepairJob[] = [
-  {
-    id: 'r1',
-    deviceId: 'dev1',
-    deviceType: 'Smartphone - Screen Crack',
-    issueDescription: 'Dropped on concrete, screen shattered but touch works.',
-    status: 'IN_PROGRESS',
-    customerId: 'u1',
-    fixerId: 'f1',
-    dateBooked: '2023-10-25',
-    estimatedCost: 120
-  },
-  {
-    id: 'r2',
-    deviceId: 'dev2',
-    deviceType: 'Laptop - Battery Issue',
-    issueDescription: 'Battery drains in 30 minutes.',
-    status: 'PENDING',
-    customerId: 'u1',
-    dateBooked: '2023-10-28',
-    aiDiagnosis: 'Likely battery degradation requiring replacement. Approx cost: $80-$150.'
-  },
-  {
-    id: 'r3',
-    deviceId: 'dev3',
-    deviceType: 'Gaming Console - Overheating',
-    issueDescription: 'Console shuts down after 10 minutes of gameplay.',
-    status: 'DIAGNOSING',
-    customerId: 'u3',
-    fixerId: 'u2', // Assigned to Super Admin (Jesica)
-    dateBooked: '2023-11-05',
-    aiDiagnosis: 'Thermal paste application issue or fan failure. Recommended: Cleaning and thermal paste replacement.'
-  }
-];
-
-export const MOCK_ORDERS: Order[] = [
-  {
-    id: 'ord-1023',
-    date: '2023-10-15',
-    total: 1248.00,
-    status: 'DELIVERED',
-    items: [
-      { productName: 'Xenon Ultra Phone 15', quantity: 1, image: MOCK_PRODUCTS[0].image },
-      { productName: 'SonicBlast 360', quantity: 1, image: MOCK_PRODUCTS[2].image }
-    ]
-  },
-  {
-    id: 'ord-1045',
-    date: '2023-10-28',
-    total: 249.00,
-    status: 'SHIPPED',
-    items: [
-      { productName: 'SonicBlast 360', quantity: 1, image: MOCK_PRODUCTS[2].image }
-    ]
-  }
-];
-
-export const MOCK_ALL_USERS: User[] = [
-    { 
-        id: 'u1', 
-        name: 'Alex Sterling', 
-        email: 'alex@example.com', 
-        role: 'CUSTOMER', 
-        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
-        phone: '+1 (555) 010-9988',
-        address: '42 Silicon Ave, Tech City, CA',
-        bio: 'Tech enthusiast. I break things, you fix them.'
-    },
-    { 
-        id: 'u2', 
-        name: 'Jesica R', 
-        email: 'jesicar1100@gmail.com', 
-        role: 'ADMIN', 
-        avatar: 'https://ui-avatars.com/api/?name=Jesica+R&background=random', 
-        availabilityStatus: 'ONLINE',
-        phone: '+1 (555) 999-0000',
-        address: 'BLUCELL HQ, San Francisco, CA',
-        bio: 'Platform Administrator and Lead Tech.'
-    },
-    { 
-        id: 'f1', 
-        name: 'Mike Ross', 
-        email: 'mike@blucell.com', 
-        role: 'FIXER', 
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256', 
-        availabilityStatus: 'ONLINE',
-        phone: '+1 (555) 234-5678',
-        address: 'Mobile Unit 4, Downtown',
-        bio: 'Certified Apple & Samsung Repair Technician. 5 years experience.'
-    },
-    { 
-        id: 'f2', 
-        name: 'Sarah Jane', 
-        email: 'sarah@blucell.com', 
-        role: 'FIXER', 
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256', 
-        availabilityStatus: 'BUSY',
-        phone: '+1 (555) 876-5432',
-        address: 'North Hills Repair Center',
-        bio: 'Specialist in micro-soldering and logic board repairs.'
-    },
-    { 
-        id: 'u3', 
-        name: 'John Doe', 
-        email: 'john@example.com', 
-        role: 'CUSTOMER', 
-        avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=random',
-        phone: '+1 (555) 111-2222',
-        address: '789 Pine St, Suburbia, NY',
-        bio: 'Just looking for good deals on gaming gear.'
-    },
-];
-
-export const MOCK_ALL_ORDERS: Order[] = [
-    ...MOCK_ORDERS,
-    {
-        id: 'ord-1099',
-        date: '2023-11-01',
-        total: 899.00,
-        status: 'PROCESSING',
-        items: [{ productName: 'ProLens 85mm', quantity: 1, image: MOCK_PRODUCTS[5].image }]
+        id: 'p-1',
+        name: 'iPhone 15 Pro Max',
+        price: 1199,
+        category: 'Phone',
+        image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=80&w=800',
+        rating: 4.9,
+        reviews: 128,
+        description: 'Titanium design, A17 Pro chip, and the most powerful iPhone camera system ever.',
+        specs: { "Screen": "6.7 inch Super Retina XDR", "Chip": "A17 Pro", "Storage": "256GB" },
+        status: 'IN_STOCK',
+        isBestSeller: true
     },
     {
-        id: 'ord-1102',
-        date: '2023-11-02',
-        total: 1299.00,
-        status: 'SHIPPED',
-        items: [{ productName: 'SkyHawk Drone X', quantity: 1, image: MOCK_PRODUCTS[3].image }]
-    }
-];
-
-export const MOCK_CHAT_SESSIONS: ChatSession[] = [
-    {
-        id: 's1',
-        userId: 'u1', // Alex
-        userName: 'Alex Sterling',
-        userAvatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256',
-        messages: [
-            { id: 'm1', senderId: 'u1', text: 'Hi, I have a question about the warranty on the Xenon Phone.', timestamp: new Date(Date.now() - 3600000), isSystem: false },
-            { id: 'm2', senderId: 'admin', text: 'Hello Alex! All our phones come with a standard 1-year warranty.', timestamp: new Date(Date.now() - 3500000), isSystem: false },
-            { id: 'm3', senderId: 'u1', text: 'Does that cover screen replacements?', timestamp: new Date(Date.now() - 3400000), isSystem: false }
-        ],
-        unreadCount: 1,
-        lastMessage: 'Does that cover screen replacements?',
-        lastMessageTime: new Date(Date.now() - 3400000),
-        status: 'OPEN'
+        id: 'p-2',
+        name: 'DJI Mavic 3 Pro',
+        price: 2199,
+        category: 'Drone',
+        image: 'https://images.unsplash.com/photo-1579829366248-204fe8413f31?auto=format&fit=crop&q=80&w=800',
+        rating: 4.8,
+        reviews: 45,
+        description: 'Triple-camera system with Hasselblad main camera for professional aerial photography.',
+        specs: { "Flight Time": "43 mins", "Range": "15km", "Video": "5.1K ProRes" },
+        status: 'IN_STOCK',
+        isBestSeller: true
     },
     {
-        id: 's2',
-        userId: 'u3', // John Doe
-        userName: 'John Doe',
-        userAvatar: 'https://ui-avatars.com/api/?name=John+Doe&background=random',
-        messages: [
-            { id: 'm4', senderId: 'u3', text: 'My order hasn\'t arrived yet. Order #ord-1099.', timestamp: new Date(Date.now() - 900000), isSystem: false }
-        ],
-        unreadCount: 1,
-        lastMessage: 'My order hasn\'t arrived yet. Order #ord-1099.',
-        lastMessageTime: new Date(Date.now() - 900000),
-        status: 'OPEN'
+        id: 'p-3',
+        name: 'Sony WH-1000XM5',
+        price: 348,
+        category: 'Audio',
+        image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&q=80&w=800',
+        rating: 4.7,
+        reviews: 342,
+        description: 'Industry-leading noise canceling headphones with exceptional sound quality.',
+        specs: { "Battery": "30 hours", "Noise Canceling": "Active", "Drivers": "30mm" },
+        status: 'IN_STOCK',
+        isBestSeller: false
+    },
+    {
+        id: 'p-4',
+        name: 'MacBook Pro 14"',
+        price: 1599,
+        category: 'Laptop',
+        image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca4?auto=format&fit=crop&q=80&w=800',
+        rating: 4.9,
+        reviews: 89,
+        description: 'M3 Pro chip. The most advanced chips ever built for a personal computer.',
+        specs: { "Chip": "M3 Pro", "Ram": "18GB", "SSD": "512GB" },
+        status: 'IN_STOCK',
+        isBestSeller: true
+    },
+    {
+        id: 'p-5',
+        name: 'Canon EOS R6 Mark II',
+        price: 2499,
+        category: 'Camera',
+        image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=800',
+        rating: 4.8,
+        reviews: 56,
+        description: 'Versatile full-frame mirrorless camera for photographers and videographers.',
+        specs: { "Sensor": "24.2MP Full-Frame", "Video": "4K 60p", "Stabilization": "In-body" },
+        status: 'IN_STOCK',
+        isBestSeller: false
+    },
+    {
+        id: 'p-6',
+        name: 'PlayStation 5 Slim',
+        price: 499,
+        category: 'Gaming',
+        image: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&q=80&w=800',
+        rating: 4.9,
+        reviews: 1250,
+        description: 'Experience lightning-fast loading with an ultra-high speed SSD.',
+        specs: { "Storage": "1TB SSD", "Output": "4K 120Hz", "Drive": "Disc Edition" },
+        status: 'IN_STOCK',
+        isBestSeller: true
+    },
+    {
+        id: 'p-7',
+        name: 'Samsung Galaxy S24 Ultra',
+        price: 1299,
+        category: 'Phone',
+        image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&q=80&w=800',
+        rating: 4.8,
+        reviews: 92,
+        description: 'Galaxy AI is here. Epic titanium design and the Note signature S Pen.',
+        specs: { "Screen": "6.8 inch QHD+", "Camera": "200MP", "Battery": "5000mAh" },
+        status: 'IN_STOCK',
+        isBestSeller: true
+    },
+    {
+        id: 'p-8',
+        name: 'GoPro Hero 12 Black',
+        price: 399,
+        category: 'Camera',
+        image: 'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&q=80&w=800',
+        rating: 4.6,
+        reviews: 210,
+        description: 'Unbelievable image quality, even better HyperSmooth video stabilization.',
+        specs: { "Video": "5.3K 60fps", "Waterproof": "33ft", "Stabilization": "HyperSmooth 6.0" },
+        status: 'IN_STOCK',
+        isBestSeller: false
+    },
+    {
+        id: 'p-9',
+        name: 'Dell XPS 15',
+        price: 1899,
+        category: 'Laptop',
+        image: 'https://images.unsplash.com/photo-1593642632823-8f78536788c6?auto=format&fit=crop&q=80&w=800',
+        rating: 4.5,
+        reviews: 76,
+        description: 'Immersive display and powerful performance for creators.',
+        specs: { "Processor": "Intel Core i9", "GPU": "RTX 4060", "Display": "OLED 3.5K" },
+        status: 'IN_STOCK',
+        isBestSeller: false
+    },
+    {
+        id: 'p-10',
+        name: 'Nintendo Switch OLED',
+        price: 349,
+        category: 'Gaming',
+        image: 'https://images.unsplash.com/photo-1578303512597-81e6cc155b3e?auto=format&fit=crop&q=80&w=800',
+        rating: 4.8,
+        reviews: 3400,
+        description: 'Features a vibrant 7-inch OLED screen and enhanced audio.',
+        specs: { "Screen": "7-inch OLED", "Storage": "64GB", "Modes": "TV, Tabletop, Handheld" },
+        status: 'IN_STOCK',
+        isBestSeller: true
+    },
+    {
+        id: 'p-11',
+        name: 'Bose QuietComfort Ultra',
+        price: 429,
+        category: 'Audio',
+        image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=800',
+        rating: 4.6,
+        reviews: 112,
+        description: 'World-class noise cancellation, quieter than ever before.',
+        specs: { "Battery": "24 hours", "Audio": "Immersive Audio", "Connectivity": "Bluetooth 5.3" },
+        status: 'IN_STOCK',
+        isBestSeller: false
+    },
+    {
+        id: 'p-12',
+        name: 'DJI Mini 4 Pro',
+        price: 759,
+        category: 'Drone',
+        image: 'https://images.unsplash.com/photo-1473968512647-3e447244af8f?auto=format&fit=crop&q=80&w=800',
+        rating: 4.9,
+        reviews: 150,
+        description: 'Mini to the max. 4K/60fps HDR True Vertical Shooting.',
+        specs: { "Weight": "<249g", "Sensing": "Omnidirectional", "Transmission": "20km" },
+        status: 'IN_STOCK',
+        isBestSeller: true
     }
 ];
 
@@ -343,3 +237,10 @@ export const DEFAULT_CONTACT_INFO: ContactInfo = {
   email: 'support@blucell.com',
   address: '123 Tech Boulevard, San Francisco, CA 94107'
 };
+
+export const DEFAULT_TEAM: TeamMember[] = [
+    { id: 't-1', name: 'Sarah Connor', role: 'CEO & Founder', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256' },
+    { id: 't-2', name: 'Mike Ross', role: 'Head Technician', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256' },
+    { id: 't-3', name: 'Emily Chen', role: 'Product Design', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256' },
+    { id: 't-4', name: 'David Kim', role: 'Operations', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=256' },
+];

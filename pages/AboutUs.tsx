@@ -1,20 +1,20 @@
+
 import React from 'react';
 import { Card, SectionTitle } from '../components/ui';
 import { Users, Target, ShieldCheck, Zap } from 'lucide-react';
+import { TeamMember } from '../types';
+import { DEFAULT_TEAM } from '../constants';
 
-export const AboutUs: React.FC = () => {
+interface AboutUsProps {
+    team?: TeamMember[];
+}
+
+export const AboutUs: React.FC<AboutUsProps> = ({ team = DEFAULT_TEAM }) => {
   const stats = [
     { label: 'Repairs Completed', value: '10,000+' },
     { label: 'Happy Customers', value: '50,000+' },
     { label: 'Certified Fixers', value: '150+' },
     { label: 'Years in Business', value: '5' },
-  ];
-
-  const team = [
-    { name: 'Sarah Connor', role: 'CEO & Founder', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256' },
-    { name: 'Mike Ross', role: 'Head Technician', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256' },
-    { name: 'Emily Chen', role: 'Product Design', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256' },
-    { name: 'David Kim', role: 'Operations', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=256' },
   ];
 
   return (

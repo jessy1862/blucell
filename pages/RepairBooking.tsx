@@ -1,23 +1,26 @@
+
 import React, { useState } from 'react';
-import { Card, Button, Input, SectionTitle, Badge } from '../components/ui';
+import { Card, Button, Input, SectionTitle, Badge, StatusIndicator } from '../components/ui';
 import { analyzeRepairRequest } from '../services/geminiService';
-import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check } from 'lucide-react';
+import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { RepairJob, User } from '../types';
+import { RepairJob, User as UserType } from '../types';
 
 interface RepairBookingProps {
   formatPrice?: (price: number) => string;
-  user?: User;
+  user?: UserType;
   onBookRepair?: (repair: RepairJob) => void;
+  fixers?: UserType[];
 }
 
-export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) => `$${p}`, user, onBookRepair }) => {
+export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) => `$${p}`, user, onBookRepair, fixers = [] }) => {
   const [step, setStep] = useState(1);
   const [device, setDevice] = useState('');
   const [issue, setIssue] = useState('');
   const [images, setImages] = useState<{file: File, preview: string}[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
+  const [selectedFixer, setSelectedFixer] = useState<UserType | null>(null);
   const [newRepairId, setNewRepairId] = useState('');
   const navigate = useNavigate();
 
@@ -85,8 +88,9 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
           deviceId: `dev-${Date.now()}`,
           deviceType: device,
           issueDescription: issue,
-          status: 'PENDING',
+          status: selectedFixer ? 'DIAGNOSING' : 'PENDING',
           customerId: user ? user.id : 'guest', // In a real app we'd force login
+          fixerId: selectedFixer ? selectedFixer.id : undefined,
           dateBooked: new Date().toISOString().split('T')[0],
           aiDiagnosis: aiDiagnosis || undefined,
           estimatedCost: 0 // Placeholder
@@ -96,7 +100,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
           onBookRepair(newRepair);
       }
 
-      setStep(3);
+      setStep(4);
   };
 
   return (
@@ -106,18 +110,22 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
         subtitle="Expert repair service with AI-powered diagnostics" 
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className={`text-center p-4 rounded-xl border-2 transition-colors ${step >= 1 ? 'border-blucell-500 text-blucell-500' : 'border-slate-200 text-slate-300'}`}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className={`text-center p-3 rounded-lg border transition-all ${step >= 1 ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/20 text-blucell-600' : 'border-slate-200 dark:border-slate-800 text-slate-400'}`}>
             <div className="font-bold text-lg mb-1">01</div>
-            <div className="text-sm">Device & Issue</div>
+            <div className="text-xs uppercase tracking-wide">Issue</div>
         </div>
-        <div className={`text-center p-4 rounded-xl border-2 transition-colors ${step >= 2 ? 'border-blucell-500 text-blucell-500' : 'border-slate-200 text-slate-300'}`}>
+        <div className={`text-center p-3 rounded-lg border transition-all ${step >= 2 ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/20 text-blucell-600' : 'border-slate-200 dark:border-slate-800 text-slate-400'}`}>
             <div className="font-bold text-lg mb-1">02</div>
-            <div className="text-sm">Diagnostics</div>
+            <div className="text-xs uppercase tracking-wide">Diagnosis</div>
         </div>
-        <div className={`text-center p-4 rounded-xl border-2 transition-colors ${step >= 3 ? 'border-blucell-500 text-blucell-500' : 'border-slate-200 text-slate-300'}`}>
+        <div className={`text-center p-3 rounded-lg border transition-all ${step >= 3 ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/20 text-blucell-600' : 'border-slate-200 dark:border-slate-800 text-slate-400'}`}>
             <div className="font-bold text-lg mb-1">03</div>
-            <div className="text-sm">Schedule</div>
+            <div className="text-xs uppercase tracking-wide">Expert</div>
+        </div>
+        <div className={`text-center p-3 rounded-lg border transition-all ${step >= 4 ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/20 text-blucell-600' : 'border-slate-200 dark:border-slate-800 text-slate-400'}`}>
+            <div className="font-bold text-lg mb-1">04</div>
+            <div className="text-xs uppercase tracking-wide">Done</div>
         </div>
       </div>
 
@@ -201,7 +209,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="p-6 cursor-pointer hover:border-blucell-500 transition-colors" onClick={handleBook}>
+                <Card className="p-6 cursor-pointer hover:border-blucell-500 transition-colors" onClick={() => setStep(3)}>
                     <h4 className="font-bold text-lg mb-2">Standard Repair</h4>
                     <p className="text-slate-500 text-sm mb-4">Original parts, 3-5 days turnaround.</p>
                     <div className="flex justify-between items-center mt-4">
@@ -209,7 +217,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                         <Button size="sm">Select</Button>
                     </div>
                 </Card>
-                 <Card className="p-6 cursor-pointer hover:border-blucell-500 transition-colors border-2 border-transparent" onClick={handleBook}>
+                 <Card className="p-6 cursor-pointer hover:border-blucell-500 transition-colors border-2 border-transparent" onClick={() => setStep(3)}>
                     <div className="flex justify-between items-start">
                         <h4 className="font-bold text-lg mb-2">Premium Express</h4>
                         <Badge color="blue">Recommended</Badge>
@@ -226,13 +234,85 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
       )}
 
       {step === 3 && (
+          <div className="space-y-6 animate-fade-in-up">
+              <div className="flex flex-col md:flex-row justify-between items-end mb-6">
+                  <div>
+                      <h3 className="text-2xl font-bold">Choose Your Expert</h3>
+                      <p className="text-slate-500">Select a verified technician to handle your {device}.</p>
+                  </div>
+                  <Button variant="ghost" onClick={() => { setSelectedFixer(null); handleBook(); }} className="text-sm">
+                      Skip & Assign Randomly
+                  </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {fixers.length > 0 ? fixers.map((fixer) => {
+                      const isUnavailable = fixer.availabilityStatus === 'OFFLINE' || fixer.availabilityStatus === 'BUSY';
+                      return (
+                      <Card 
+                        key={fixer.id} 
+                        className={`p-6 transition-all hover:shadow-lg ${
+                            selectedFixer?.id === fixer.id 
+                            ? 'border-2 border-blucell-500 bg-blucell-50 dark:bg-blucell-900/10' 
+                            : 'border border-slate-200 dark:border-slate-800'
+                        } ${isUnavailable ? 'opacity-70 grayscale-[0.5]' : 'cursor-pointer'}`}
+                        onClick={() => !isUnavailable && setSelectedFixer(fixer)}
+                      >
+                          <div className="flex items-center gap-4 mb-4">
+                              <img src={fixer.avatar} alt={fixer.name} className="w-14 h-14 rounded-full object-cover bg-slate-200" />
+                              <div>
+                                  <h4 className="font-bold text-lg">{fixer.name}</h4>
+                                  <div className="flex items-center gap-2">
+                                      <StatusIndicator status={fixer.availabilityStatus || 'ONLINE'} />
+                                  </div>
+                              </div>
+                          </div>
+                          
+                          {fixer.bio && (
+                              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2 italic">"{fixer.bio}"</p>
+                          )}
+                          
+                          <div className="flex gap-2 mb-4">
+                              <Badge color="blue">Certified</Badge>
+                              <Badge color="green">98% Success</Badge>
+                          </div>
+
+                          <Button 
+                            className={`w-full ${selectedFixer?.id === fixer.id ? 'bg-blucell-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                            disabled={isUnavailable}
+                          >
+                              {selectedFixer?.id === fixer.id ? 'Selected' : isUnavailable ? 'Unavailable' : 'Select Fixer'}
+                          </Button>
+                      </Card>
+                  )}) : (
+                      <div className="col-span-full text-center py-12 text-slate-500">
+                          <p>No specific fixers available at the moment.</p>
+                          <Button variant="outline" onClick={handleBook} className="mt-4">Continue with Auto-Assign</Button>
+                      </div>
+                  )}
+              </div>
+
+              <div className="flex justify-between pt-6 border-t border-slate-200 dark:border-slate-800">
+                  <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+                  <Button onClick={handleBook} disabled={!selectedFixer && fixers.length > 0}>
+                      {selectedFixer ? `Confirm & Book with ${selectedFixer.name.split(' ')[0]}` : 'Confirm Booking'}
+                  </Button>
+              </div>
+          </div>
+      )}
+
+      {step === 4 && (
         <Card className="p-12 text-center animate-fade-in-up">
             <div className="w-20 h-20 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Check className="w-10 h-10 text-green-600 dark:text-green-400" />
             </div>
             <h2 className="text-2xl font-bold mb-4">Booking Confirmed!</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-md mx-auto">
-                A courier has been dispatched to pick up your <strong>{device}</strong>. A technician will be assigned shortly.
+                A courier has been dispatched to pick up your <strong>{device}</strong>. 
+                {selectedFixer 
+                    ? <span> You've assigned <strong>{selectedFixer.name}</strong> to your repair.</span> 
+                    : " A technician will be assigned shortly."
+                }
             </p>
             
             <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-xl mb-8 border border-slate-200 dark:border-slate-800 max-w-md mx-auto">
@@ -243,7 +323,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                     </Button>
                 </div>
                 <p className="text-xs text-slate-500 text-left">
-                    "We've received your ticket for the {device}. You can track the status in your dashboard."
+                    "We've received your ticket for the {device}. You can chat directly with your technician in the dashboard to discuss details."
                 </p>
             </div>
 

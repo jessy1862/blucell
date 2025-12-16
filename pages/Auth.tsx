@@ -11,18 +11,19 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   updateProfile, 
-  sendEmailVerification,
+  sendEmailVerification, 
   sendPasswordResetEmail,
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
   doc, 
   setDoc, 
-  getDoc,
+  getDoc, 
   ref, 
   uploadBytes, 
   getDownloadURL 
 } from '../services/firebase';
+import { saveUserToNeon } from '../services/neon';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -83,20 +84,42 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
 
-        // Check if user exists in DB, if not create
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (!userDoc.exists()) {
-            await setDoc(userDocRef, {
-                id: user.uid,
-                name: user.displayName || 'User',
-                email: user.email,
-                role: 'CUSTOMER',
-                avatar: user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || 'User'}&background=random`,
-                createdAt: new Date().toISOString()
-            });
+        // Determine Role
+        let role: 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' = 'CUSTOMER';
+        if (user.email === 'jesicar1100@gmail.com') {
+            role = 'SUPER_ADMIN';
         }
+
+        const userData = {
+            id: user.uid,
+            name: user.displayName || 'User',
+            email: user.email || '',
+            role: role,
+            avatar: user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || 'User'}&background=random`,
+            createdAt: new Date().toISOString()
+        };
+
+        // Try Firestore save (non-blocking)
+        try {
+            const userDocRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (!userDoc.exists()) {
+                await setDoc(userDocRef, userData);
+            }
+        } catch (fsError) {
+            console.warn("Firestore operation skipped due to permissions:", fsError);
+        }
+
+        // Save to Neon
+        await saveUserToNeon({
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            avatar: userData.avatar,
+            created_at: userData.createdAt
+        });
+
         // App.tsx onAuthStateChanged will handle the rest
     } catch (err: any) {
         console.error("Google Auth Error", err);
@@ -182,14 +205,36 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 photoURL: photoURL
             });
 
-            // 5. Save User Data to Database (Firestore)
-            await setDoc(doc(db, "users", user.uid), {
+            // Determine Role
+            let role: 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' = 'CUSTOMER';
+            if (email === 'jesicar1100@gmail.com') {
+                role = 'SUPER_ADMIN';
+            }
+
+            const userData = {
                 id: user.uid,
                 name: name,
                 email: email,
-                role: 'CUSTOMER', // Default role
+                role: role, 
                 avatar: photoURL,
                 createdAt: new Date().toISOString()
+            };
+
+            // 5. Save User Data to Database (Firestore) - Non-blocking / Safe
+            try {
+                 await setDoc(doc(db, "users", user.uid), userData);
+            } catch (fsError) {
+                console.warn("Firestore save skipped:", fsError);
+            }
+
+            // Save to Neon
+            await saveUserToNeon({
+                id: userData.id,
+                name: userData.name,
+                email: userData.email,
+                role: userData.role,
+                avatar: userData.avatar,
+                created_at: userData.createdAt
             });
 
             // 6. Send Verification Email & Sign Out (Do not auto-login)
@@ -235,8 +280,21 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     <p className="text-slate-600 dark:text-slate-400 mb-8">
                         We have sent you a verification email to <span className="font-bold text-slate-900 dark:text-white">{email}</span>. Verify it and log in.
                     </p>
-                    <Button onClick={() => { setVerificationSent(false); setIsLogin(true); resetForm(); }} className="w-full">
-                        Return to Login
+                    <Button 
+                        onClick={() => { 
+                            setVerificationSent(false); 
+                            setIsLogin(true); 
+                            // Reset password fields but keep email for easier login
+                            setPassword('');
+                            setConfirmPassword('');
+                            setPhoto(null);
+                            setPhotoPreview('');
+                            setError('');
+                            setSuccessMessage('');
+                        }} 
+                        className="w-full"
+                    >
+                        Login
                     </Button>
                 </Card>
             </div>

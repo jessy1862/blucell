@@ -1,5 +1,5 @@
 
-export type UserRole = 'CUSTOMER' | 'FIXER' | 'ADMIN';
+export type UserRole = 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN';
 
 export type AvailabilityStatus = 'ONLINE' | 'OFFLINE' | 'BUSY';
 
@@ -122,4 +122,11 @@ export interface ContactMessage {
   message: string;
   date: Date;
   read: boolean;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  image: string;
 }

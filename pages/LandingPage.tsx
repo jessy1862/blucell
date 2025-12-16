@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui';
 import { ChevronRight, Wrench, ShieldCheck, Truck, Cpu, Gamepad2, Smartphone, Camera, Watch, Headphones, Info, Mail, ArrowRight } from 'lucide-react';
-import { LandingPageConfig, ContactInfo } from '../types';
-import { DEFAULT_LANDING_CONFIG } from '../constants';
+import { LandingPageConfig, ContactInfo, TeamMember } from '../types';
+import { DEFAULT_LANDING_CONFIG, DEFAULT_TEAM } from '../constants';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ContactUs } from './ContactUs';
 import { AboutUs } from './AboutUs';
@@ -11,10 +11,11 @@ import { AboutUs } from './AboutUs';
 interface LandingPageProps {
     config?: LandingPageConfig;
     contactInfo?: ContactInfo;
+    team?: TeamMember[];
     onSendMessage?: (msg: { name: string, email: string, subject: string, message: string }) => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDING_CONFIG, contactInfo, onSendMessage }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDING_CONFIG, contactInfo, team = DEFAULT_TEAM, onSendMessage }) => {
   const { hero, features, trending, ctaBottom } = config;
   const navigate = useNavigate();
   const location = useLocation();
@@ -271,7 +272,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
 
       {/* About Section (Integrated) */}
       <section id="about" className="border-t border-slate-200 dark:border-slate-800">
-        <AboutUs />
+        <AboutUs team={team} />
       </section>
 
       {/* Contact Section */}

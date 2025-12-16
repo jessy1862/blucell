@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, AvailabilityStatus } from '../types';
 import { Card, Button, Input, SectionTitle, Badge } from '../components/ui';
-import { User as UserIcon, Mail, Phone, MapPin, Camera, Save, Bell, Shield, LogOut, Lock, Smartphone, Laptop } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, MapPin, Camera, Save, Bell, Shield, LogOut, Lock, Smartphone, Laptop, Briefcase } from 'lucide-react';
 
 interface ProfileSettingsProps {
   user: User;
@@ -9,7 +10,7 @@ interface ProfileSettingsProps {
   onLogout: () => void;
 }
 
-type SettingsTab = 'profile' | 'notifications' | 'security';
+type SettingsTab = 'profile' | 'notifications' | 'security' | 'fixer';
 
 export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate, onLogout }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
@@ -20,12 +21,13 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
     email: user.email,
     phone: user.phone || '',
     address: user.address || '',
-    bio: user.bio || ''
+    bio: user.bio || '',
+    availabilityStatus: user.availabilityStatus || 'OFFLINE'
   });
   const [isSaving, setIsSaving] = useState(false);
   const [avatar, setAvatar] = useState(user.avatar);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -149,6 +151,56 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
             </div>
         </form>
     </Card>
+  );
+
+  const renderFixerSettings = () => (
+      <Card className="p-8 animate-fade-in-up">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-blucell-600" /> Fixer Dashboard
+          </h3>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                  <h4 className="font-semibold mb-2">Availability Status</h4>
+                  <p className="text-sm text-slate-500 mb-4">Control whether you appear in the "Find an Expert" list for new customers.</p>
+                  
+                  <div className="flex gap-4">
+                      {['ONLINE', 'BUSY', 'OFFLINE'].map((status) => (
+                          <button
+                              type="button"
+                              key={status}
+                              onClick={() => setFormData({ ...formData, availabilityStatus: status as AvailabilityStatus })}
+                              className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-bold transition-all ${
+                                  formData.availabilityStatus === status 
+                                  ? status === 'ONLINE' ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' 
+                                  : status === 'BUSY' ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                                  : 'border-slate-500 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                  : 'border-transparent bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-200 dark:hover:border-slate-700'
+                              }`}
+                          >
+                              {status}
+                          </button>
+                      ))}
+                  </div>
+              </div>
+
+              <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Professional Bio</label>
+                  <p className="text-xs text-slate-500 mb-2">This will be displayed to customers when booking.</p>
+                  <textarea 
+                      name="bio"
+                      value={formData.bio}
+                      onChange={handleChange}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm h-24 focus:outline-none focus:ring-2 focus:ring-blucell-500 placeholder:text-slate-400"
+                      placeholder="e.g. Certified Apple Technician with 5 years experience..."
+                  />
+              </div>
+
+              <div className="flex justify-end pt-4">
+                  <Button type="submit" isLoading={isSaving}>Update Status</Button>
+              </div>
+          </form>
+      </Card>
   );
 
   const renderNotifications = () => (
@@ -305,6 +357,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
           <Card className="p-0 overflow-hidden">
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 <NavButton tab="profile" icon={UserIcon} label="Profile" />
+                {(user.role === 'FIXER' || user.role === 'ADMIN') && (
+                    <NavButton tab="fixer" icon={Briefcase} label="Fixer Dashboard" />
+                )}
                 <NavButton tab="notifications" icon={Bell} label="Notifications" />
                 <NavButton tab="security" icon={Shield} label="Security" />
                 <NavButton icon={LogOut} label="Log Out" variant="danger" />
@@ -315,6 +370,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
         {/* Right Content */}
         <div className="md:col-span-8 lg:col-span-9">
             {activeTab === 'profile' && renderProfile()}
+            {activeTab === 'fixer' && renderFixerSettings()}
             {activeTab === 'notifications' && renderNotifications()}
             {activeTab === 'security' && renderSecurity()}
         </div>
