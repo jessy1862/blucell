@@ -199,7 +199,7 @@ const ensureUsersTable = async () => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    // Ensure columns exist
+    // Ensure columns exist (Migrations)
     try { await sql(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE users ADD COLUMN IF NOT EXISTS availability_status TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;`); } catch (e) {}

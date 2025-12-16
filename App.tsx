@@ -487,8 +487,8 @@ export default function App() {
           avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'User'}&background=random`,
           availabilityStatus: availabilityStatus as any,
           bio: bio,
-          phone: dbUser?.phone, 
-          address: dbUser?.address
+          phone: dbUser?.phone, // Map phone from DB
+          address: dbUser?.address // Map address from DB
         };
         setUser(appUser);
         
