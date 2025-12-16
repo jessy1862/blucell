@@ -1427,8 +1427,73 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
     );
 
-    const renderSystem = () => (
+    const renderSystem = () => {
+        const dispatchJobs = allRepairs.filter(r => r.deliveryMethod === 'PICKUP' && r.status !== 'COMPLETED' && r.status !== 'DELIVERED');
+
+        return (
         <div className="space-y-6 animate-fade-in">
+            {/* Dispatch Logistics Section for Super Admin */}
+            <Card className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                        <Truck className="w-5 h-5 text-blucell-600" /> Dispatch Logistics Queue
+                    </h3>
+                    <Badge color="blue">{dispatchJobs.length} Active Pickups</Badge>
+                </div>
+                
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-silver-50 dark:bg-silver-800 text-silver-500 font-medium border-b border-silver-100 dark:border-silver-800">
+                            <tr>
+                                <th className="px-4 py-3">Ticket ID</th>
+                                <th className="px-4 py-3">Device</th>
+                                <th className="px-4 py-3">Customer Contact</th>
+                                <th className="px-4 py-3">Pickup Address</th>
+                                <th className="px-4 py-3">Date Booked</th>
+                                <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                            {dispatchJobs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-4 py-8 text-center text-silver-500 italic">
+                                        No active dispatch requests pending.
+                                    </td>
+                                </tr>
+                            ) : (
+                                dispatchJobs.map(job => (
+                                    <tr key={job.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
+                                        <td className="px-4 py-3 font-mono text-xs text-silver-500">{job.id.split('-')[1] || job.id}</td>
+                                        <td className="px-4 py-3 font-medium">{job.deviceType}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-col">
+                                                <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-silver-400" /> {job.contactPhone || 'N/A'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 max-w-xs truncate" title={job.pickupAddress}>
+                                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-silver-400" /> {job.pickupAddress || 'N/A'}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-silver-500">{new Date(job.dateBooked).toLocaleDateString()}</td>
+                                        <td className="px-4 py-3"><Badge color={job.status === 'PENDING' ? 'yellow' : 'blue'}>{job.status}</Badge></td>
+                                        <td className="px-4 py-3 text-right">
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline" 
+                                                onClick={() => { setViewingRepair(job); setActiveTab('repairs'); }}
+                                                className="text-xs h-8"
+                                            >
+                                                Manage Ticket
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="p-6">
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -1472,7 +1537,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </Card>
             </div>
         </div>
-    );
+        );
+    };
 
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-8 flex flex-col md:flex-row gap-8">
