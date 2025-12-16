@@ -6,7 +6,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'mock-key' });
 export const analyzeRepairRequest = async (device: string, description: string, images: any[] = []): Promise<string> => {
   // If no API key is set (or using the mock string from initialization), return a simulated response.
   // In a real env, we'd check if the key is valid. For this demo, we assume 'mock-key' means offline mode.
-  if (!process.env.API_KEY || process.env.API_KEY === 'mock-key') {
+  if (!process.env.API_KEY || process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' === 'mock-key') {
     return `AI Diagnosis (Demo Mode): Based on your description of the ${device}${images.length > 0 ? " and the provided images" : ""}, this appears to be a hardware fault. We recommend a full diagnostic by our team. Estimated range: $50 - $200.`;
   }
 
@@ -37,7 +37,7 @@ export const analyzeRepairRequest = async (device: string, description: string, 
 };
 
 export const generateChatResponse = async (history: ChatMessage[], newMessage: string): Promise<string> => {
-    if (!process.env.API_KEY || process.env.API_KEY === 'mock-key') {
+    if (!process.env.API_KEY || process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' === 'mock-key') {
          // Simple keyword matching for demo mode
          const lower = newMessage.toLowerCase();
          if (lower.includes('warranty')) return "All BLUCELL repairs come with a 90-day warranty, and new products have a 1-year manufacturer warranty.";
