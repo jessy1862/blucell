@@ -21,7 +21,8 @@ export const AboutUs: React.FC<AboutUsProps> = ({ team = DEFAULT_TEAM }) => {
     <div className="animate-fade-in">
       {/* Hero Section */}
       <div className="bg-slate-900 text-white py-24 px-4 text-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+        {/* Replaced external texture with CSS pattern */}
+        <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px] opacity-20"></div>
         <div className="relative z-10 max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight">Revolutionizing the <br/><span className="text-blucell-500">Tech Lifecycle</span></h1>
             <p className="text-lg text-slate-300 max-w-2xl mx-auto">

@@ -1,8 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, AvailabilityStatus } from '../types';
 import { Card, Button, Input, SectionTitle, Badge } from '../components/ui';
-import { User as UserIcon, Mail, Phone, MapPin, Camera, Save, Bell, Shield, LogOut, Lock, Smartphone, Laptop, Briefcase } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, MapPin, Camera, Save, Bell, Shield, LogOut, Lock, Smartphone, Laptop, Briefcase, Upload, RefreshCw } from 'lucide-react';
+import { storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
+import { getUserSessionsFromNeon, NeonUserSession, deleteUserSessionFromNeon, deleteAllUserSessionsFromNeon } from '../services/neon';
 
 interface ProfileSettingsProps {
   user: User;
@@ -26,6 +28,22 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
   });
   const [isSaving, setIsSaving] = useState(false);
   const [avatar, setAvatar] = useState(user.avatar);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>(user.avatar);
+
+  // Sessions State
+  const [sessions, setSessions] = useState<NeonUserSession[]>([]);
+  const currentSessionId = sessionStorage.getItem('blucell_session_id');
+
+  const fetchSessions = () => {
+      getUserSessionsFromNeon(user.id).then(setSessions);
+  }
+
+  useEffect(() => {
+      if (activeTab === 'security') {
+          fetchSessions();
+      }
+  }, [activeTab, user.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -34,15 +52,49 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    onUpdate({ ...formData, avatar });
+    
+    let uploadedAvatarUrl = avatar;
+
+    if (avatarFile) {
+        try {
+            const storageRef = ref(storage, `profile_photos/${user.id}`);
+            await uploadBytes(storageRef, avatarFile);
+            uploadedAvatarUrl = await getDownloadURL(storageRef);
+        } catch (error) {
+            console.error("Avatar upload failed", error);
+            // Fallback or alert?
+        }
+    }
+
+    onUpdate({ ...formData, avatar: uploadedAvatarUrl });
+    setAvatar(uploadedAvatarUrl);
+    setAvatarFile(null);
     setIsSaving(false);
   };
 
-  const handleAvatarChange = () => {
-    const newAvatar = `https://ui-avatars.com/api/?name=${formData.name}&background=random&color=fff&size=256`;
-    setAvatar(newAvatar);
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        setAvatarFile(file);
+        setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRevokeSession = async (sessionId: string) => {
+      await deleteUserSessionFromNeon(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      
+      // If revoking current session, logout
+      if (sessionId === currentSessionId) {
+          onLogout();
+      }
+  };
+
+  const handleLogOutAll = async () => {
+      if (window.confirm("Are you sure you want to log out of all devices?")) {
+          await deleteAllUserSessionsFromNeon(user.id);
+          onLogout();
+      }
   };
 
   const NavButton = ({ tab, icon: Icon, label, variant = 'default' }: { tab?: SettingsTab, icon: any, label: string, variant?: 'default' | 'danger' }) => {
@@ -297,33 +349,36 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
         </Card>
 
         <Card className="p-8">
-             <h3 className="text-xl font-bold mb-6">Active Sessions</h3>
+             <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Active Sessions</h3>
+                <Button variant="ghost" size="sm" onClick={fetchSessions} title="Refresh Sessions">
+                    <RefreshCw className="w-4 h-4" />
+                </Button>
+             </div>
              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex items-center gap-4">
-                        <Laptop className="w-6 h-6 text-slate-500" />
-                        <div>
-                            <p className="font-medium text-sm">MacBook Pro 16" - Chrome</p>
-                            <p className="text-xs text-slate-500">San Francisco, CA • Active now</p>
+                {sessions.map(session => (
+                    <div key={session.id} className={`flex items-center justify-between p-3 rounded-lg border ${session.id === currentSessionId ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700' : 'border-slate-100 dark:border-slate-800'}`}>
+                        <div className="flex items-center gap-4">
+                            {session.device_name.toLowerCase().includes('phone') ? <Smartphone className="w-6 h-6 text-slate-500" /> : <Laptop className="w-6 h-6 text-slate-500" />}
+                            <div>
+                                <p className="font-medium text-sm">{session.device_name}</p>
+                                <p className="text-xs text-slate-500">{session.location} • {new Date(session.last_active).toLocaleString()}</p>
+                            </div>
                         </div>
+                        {session.id === currentSessionId ? (
+                            <Badge color="green">Current</Badge>
+                        ) : (
+                            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleRevokeSession(session.id)}>Revoke</Button>
+                        )}
                     </div>
-                    <Badge color="green">Current</Badge>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border border-slate-100 dark:border-slate-800 rounded-lg">
-                    <div className="flex items-center gap-4">
-                        <Smartphone className="w-6 h-6 text-slate-500" />
-                        <div>
-                            <p className="font-medium text-sm">iPhone 14 Pro - Safari</p>
-                            <p className="text-xs text-slate-500">San Francisco, CA • 2 hours ago</p>
-                        </div>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">Revoke</Button>
-                </div>
+                ))}
+                {sessions.length === 0 && (
+                    <p className="text-center text-slate-500 py-4">No active sessions found.</p>
+                )}
              </div>
              
              <div className="mt-6 text-right">
-                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">Log Out Of All Devices</Button>
+                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={handleLogOutAll}>Log Out Of All Devices</Button>
              </div>
         </Card>
     </div>
@@ -337,14 +392,15 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate
         {/* Left Sidebar */}
         <div className="md:col-span-4 lg:col-span-3 space-y-6">
           <Card className="p-6 text-center">
-            <div className="relative inline-block mb-4 group cursor-pointer" onClick={handleAvatarChange}>
+            <label className="relative inline-block mb-4 group cursor-pointer">
               <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 dark:border-slate-800 mx-auto">
-                <img src={avatar} alt={user.name} className="w-full h-full object-cover" />
+                <img src={avatarPreview} alt={user.name} className="w-full h-full object-cover" />
               </div>
               <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera className="w-8 h-8 text-white" />
               </div>
-            </div>
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarSelect} />
+            </label>
             <h3 className="font-bold text-xl mb-1">{formData.name}</h3>
             <p className="text-slate-500 text-sm mb-4 capitalize">{user.role.toLowerCase()}</p>
             <div className="flex justify-center">

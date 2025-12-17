@@ -35,7 +35,8 @@ import {
     getChatSessionsFromNeon, 
     saveUserToNeon,
     getRepairChatsFromNeon,
-    saveRepairChatToNeon
+    saveRepairChatToNeon,
+    saveUserSessionToNeon
 } from './services/neon';
 
 interface NavbarProps {
@@ -442,12 +443,29 @@ export default function App() {
       });
   }, []);
 
+  const getDeviceName = () => {
+    const ua = navigator.userAgent;
+    let browser = "Unknown Browser";
+    if (ua.indexOf("Chrome") > -1) browser = "Chrome";
+    else if (ua.indexOf("Safari") > -1) browser = "Safari";
+    else if (ua.indexOf("Firefox") > -1) browser = "Firefox";
+
+    let os = "Unknown OS";
+    if (ua.indexOf("Win") > -1) os = "Windows";
+    else if (ua.indexOf("Mac") > -1) os = "MacOS";
+    else if (ua.indexOf("Linux") > -1) os = "Linux";
+    else if (ua.indexOf("Android") > -1) os = "Android";
+    else if (ua.indexOf("like Mac") > -1) os = "iOS";
+
+    return `${os} - ${browser}`;
+  }
+
   // Firebase Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && firebaseUser.emailVerified) {
         
-        let role: 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' = 'CUSTOMER';
+        let role: 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' | 'ADMIN_JR' = 'CUSTOMER';
         let availabilityStatus = 'OFFLINE';
         let bio = '';
 
@@ -497,6 +515,26 @@ export default function App() {
         };
         setUser(appUser);
         
+        // --- Session Management ---
+        const currentSessionId = sessionStorage.getItem('blucell_session_id');
+        let newSessionId = currentSessionId;
+        
+        if (!newSessionId) {
+            newSessionId = `sess-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            sessionStorage.setItem('blucell_session_id', newSessionId);
+        }
+
+        // Get timezone as rough location
+        const location = Intl.DateTimeFormat().resolvedOptions().timeZone.replace('_', ' ');
+
+        saveUserSessionToNeon({
+            id: newSessionId,
+            user_id: appUser.id,
+            device_name: getDeviceName(),
+            location: location,
+            last_active: new Date().toISOString()
+        });
+
         // Sync with allUsers list for admin view
         setAllUsers(prev => {
             if (!prev.find(u => u.id === appUser.id)) {
@@ -549,14 +587,15 @@ export default function App() {
                 contact_phone: r.contact_phone,
                 courier: r.courier,
                 trackingNumber: r.tracking_number,
-                timeline: JSON.parse(r.timeline || '[]')
+                timeline: JSON.parse(r.timeline || '[]'),
+                images: JSON.parse(r.images || '[]')
             }));
             setAllRepairs(formattedRepairs);
         }
     });
 
-    // Admin Specific Data
-    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+    // Admin Specific Data (Admin JR also needs this)
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_JR') {
         // Fetch Contact Messages
         getContactMessagesFromNeon().then(msgs => {
             if (msgs.length > 0) {
@@ -659,6 +698,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('blucell_session_id');
     signOut(auth);
     setCart([]);
   };
@@ -831,7 +871,8 @@ export default function App() {
           contact_phone: repair.contactPhone,
           courier: repair.courier,
           tracking_number: repair.trackingNumber,
-          timeline: JSON.stringify(repair.timeline || [])
+          timeline: JSON.stringify(repair.timeline || []),
+          images: JSON.stringify(repair.images || [])
       });
   };
 
@@ -854,7 +895,8 @@ export default function App() {
           contact_phone: repair.contactPhone,
           courier: repair.courier,
           tracking_number: repair.trackingNumber,
-          timeline: JSON.stringify(repair.timeline || [])
+          timeline: JSON.stringify(repair.timeline || []),
+          images: JSON.stringify(repair.images || [])
       });
   };
 
@@ -1140,7 +1182,7 @@ export default function App() {
         <Footer />
         
         {/* Support Chat Widget - Only for Customers/Fixers */}
-        {user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && (
+        {user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN_JR' && (
             <SupportChatWidget 
                 messages={userMessages}
                 onSendMessage={handleSendSupportMessage}

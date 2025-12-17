@@ -92,6 +92,7 @@ export interface NeonRepairJob {
     tracking_number?: string;
     timeline?: string; // JSON string
     is_paid?: boolean;
+    images?: string; // JSON string of urls
 }
 
 export interface NeonOrder {
@@ -136,6 +137,14 @@ export interface NeonRepairChat {
     messages: string; // JSON string
     last_message_at: string;
     created_at?: string;
+}
+
+export interface NeonUserSession {
+    id: string;
+    user_id: string;
+    device_name: string;
+    location: string;
+    last_active: string;
 }
 
 // --- Contact Messages ---
@@ -275,6 +284,52 @@ export const getUserFromNeon = async (id: string): Promise<NeonUser | null> => {
     }
 }
 
+// --- User Sessions ---
+
+const ensureUserSessionsTable = async () => {
+    await sql(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            device_name TEXT,
+            location TEXT,
+            last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+}
+
+export const saveUserSessionToNeon = async (session: NeonUserSession) => {
+    try {
+        await ensureUserSessionsTable();
+        await sql(`
+            INSERT INTO user_sessions (id, user_id, device_name, location, last_active)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO UPDATE SET
+                last_active = EXCLUDED.last_active;
+        `, [session.id, session.user_id, session.device_name, session.location, session.last_active]);
+    } catch (e) { console.error("Error saving session", e); }
+}
+
+export const getUserSessionsFromNeon = async (userId: string) => {
+    try {
+        await ensureUserSessionsTable();
+        const res = await sql('SELECT * FROM user_sessions WHERE user_id = $1 ORDER BY last_active DESC', [userId]);
+        return res.rows;
+    } catch (e) { return []; }
+}
+
+export const deleteUserSessionFromNeon = async (sessionId: string) => {
+    try {
+        await sql('DELETE FROM user_sessions WHERE id = $1', [sessionId]);
+    } catch (e) { console.error("Error deleting session", e); }
+}
+
+export const deleteAllUserSessionsFromNeon = async (userId: string) => {
+    try {
+        await sql('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+    } catch (e) { console.error("Error deleting all sessions", e); }
+}
+
 // --- Repair Jobs ---
 
 const ensureRepairsTable = async () => {
@@ -304,14 +359,15 @@ const ensureRepairsTable = async () => {
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS tracking_number TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS timeline TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS images TEXT;`); } catch (e) {}
 }
 
 export const saveRepairToNeon = async (repair: NeonRepairJob) => {
     try {
         await ensureRepairsTable();
         await sql(`
-            INSERT INTO repairs (id, device_id, device_type, issue_description, status, customer_id, fixer_id, date_booked, estimated_cost, ai_diagnosis, delivery_method, pickup_address, contact_phone, courier, tracking_number, timeline, is_paid)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            INSERT INTO repairs (id, device_id, device_type, issue_description, status, customer_id, fixer_id, date_booked, estimated_cost, ai_diagnosis, delivery_method, pickup_address, contact_phone, courier, tracking_number, timeline, is_paid, images)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             ON CONFLICT (id) DO UPDATE SET
                 status = EXCLUDED.status,
                 fixer_id = EXCLUDED.fixer_id,
@@ -323,7 +379,8 @@ export const saveRepairToNeon = async (repair: NeonRepairJob) => {
                 courier = EXCLUDED.courier,
                 tracking_number = EXCLUDED.tracking_number,
                 timeline = EXCLUDED.timeline,
-                is_paid = EXCLUDED.is_paid;
+                is_paid = EXCLUDED.is_paid,
+                images = EXCLUDED.images;
         `, [
             repair.id,
             repair.device_id,
@@ -341,7 +398,8 @@ export const saveRepairToNeon = async (repair: NeonRepairJob) => {
             repair.courier || null,
             repair.tracking_number || null,
             repair.timeline || '[]',
-            repair.is_paid || false
+            repair.is_paid || false,
+            repair.images || '[]'
         ]);
         console.log("Repair saved to Neon:", repair.id);
     } catch (err: any) {

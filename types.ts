@@ -1,5 +1,6 @@
 
-export type UserRole = 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN';
+
+export type UserRole = 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' | 'ADMIN_JR';
 
 export type AvailabilityStatus = 'ONLINE' | 'OFFLINE' | 'BUSY';
 
@@ -50,6 +51,7 @@ export interface RepairJob {
   trackingNumber?: string;
   timeline?: { status: string; date: string; note?: string }[];
   isPaid?: boolean;
+  images?: string[];
 }
 
 export interface Order {

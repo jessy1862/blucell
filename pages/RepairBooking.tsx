@@ -5,6 +5,7 @@ import { analyzeRepairRequest } from '../services/geminiService';
 import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check, User, Truck, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { RepairJob, User as UserType } from '../types';
+import { storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 
 interface RepairBookingProps {
   formatPrice?: (price: number) => string;
@@ -19,6 +20,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
   const [issue, setIssue] = useState('');
   const [images, setImages] = useState<{file: File, preview: string}[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
   const [selectedFixer, setSelectedFixer] = useState<UserType | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<'PICKUP' | 'DROP_OFF'>('PICKUP');
@@ -85,7 +87,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
     }
   };
 
-  const handleBook = () => {
+  const handleBook = async () => {
       // Security check: Must be logged in to book
       if (!user) {
           navigate('/auth');
@@ -97,8 +99,25 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
           return;
       }
 
+      setIsSubmitting(true);
       const id = `repair-${Date.now()}`;
       setNewRepairId(id);
+
+      // Upload Images to Firebase
+      const imageUrls: string[] = [];
+      if (images.length > 0) {
+        try {
+            await Promise.all(images.map(async (img) => {
+                const storageRef = ref(storage, `repair-images/${id}/${img.file.name}`);
+                await uploadBytes(storageRef, img.file);
+                const url = await getDownloadURL(storageRef);
+                imageUrls.push(url);
+            }));
+        } catch (err) {
+            console.error("Failed to upload repair images", err);
+            // Continue even if image upload fails, but warn?
+        }
+      }
       
       const newRepair: RepairJob = {
           id: id,
@@ -117,13 +136,15 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
           timeline: [
               { status: 'TICKET CREATED', date: new Date().toISOString(), note: 'Repair request submitted.' }
           ],
-          isPaid: false
+          isPaid: false,
+          images: imageUrls
       };
 
       if (onBookRepair) {
           onBookRepair(newRepair);
       }
 
+      setIsSubmitting(false);
       setStep(4);
   };
 
@@ -389,7 +410,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                   <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
                   
                   {user ? (
-                      <Button onClick={handleBook} disabled={(!selectedFixer && fixers.length > 0) || (deliveryMethod === 'PICKUP' && (!contactPhone || !pickupAddress))}>
+                      <Button onClick={handleBook} isLoading={isSubmitting} disabled={(!selectedFixer && fixers.length > 0) || (deliveryMethod === 'PICKUP' && (!contactPhone || !pickupAddress))}>
                           {selectedFixer ? `Confirm & Book with ${selectedFixer.name.split(' ')[0]}` : 'Confirm Booking'}
                       </Button>
                   ) : (

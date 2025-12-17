@@ -68,7 +68,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ config = DEFAULT_LANDI
       <section className="relative min-h-[90vh] flex items-center overflow-hidden bg-slate-950 pt-20 pb-20">
         {/* Abstract Background */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blucell-900 via-slate-950 to-slate-950 opacity-80"></div>
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+        {/* Replaced external texture with CSS pattern for reliability */}
+        <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px] opacity-20"></div>
         
         <div className="container mx-auto px-6 relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8 animate-fade-in-up">
