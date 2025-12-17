@@ -7,18 +7,17 @@ import {
     Search, Plus, Filter, MoreVertical, Check, X, 
     Package, DollarSign, Clock, AlertCircle, Edit, Trash2, 
     ChevronRight, Send, Save, User as UserIcon, Image as ImageIcon,
-    LogOut, Settings, ExternalLink, BarChart as BarChartIcon, Layers, Type, MousePointer, Upload, Eye, ShieldAlert, Database, Lock, RefreshCw, Terminal, Briefcase, Cpu, Truck, MapPin, Phone
+    LogOut, Settings, ExternalLink, BarChart as BarChartIcon, Layers, Type, MousePointer, Upload, Eye, ShieldAlert, Database, Lock, RefreshCw, Terminal, Briefcase, Cpu, Truck, MapPin, Phone, Printer, PackageCheck, History,
+    LayoutDashboard, UserPlus, FileText, ClipboardList, Smartphone, Barcode, CreditCard
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { SEED_PRODUCTS } from '../constants';
 
 interface DashboardProps {
   user: User;
   onUpdateUser: (data: Partial<User>) => void;
   products: Product[];
-  onAddProduct: (p: Product) => void;
-  onUpdateProduct: (p: Product) => void;
+  onAddProduct: (product: Product) => void;
+  onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
   onUpdatePlatformSettings: (settings: { logo?: string }) => void;
   formatPrice: (price: number) => string;
@@ -32,13 +31,13 @@ interface DashboardProps {
   contactMessages: ContactMessage[];
   onDeleteContactMessage: (id: string) => void;
   allUsers: User[];
-  onAddUser: (u: User) => void;
-  onUpdateUserAdmin: (u: User) => void;
+  onAddUser: (user: User) => void;
+  onUpdateUserAdmin: (user: User) => void;
   allOrders: Order[];
-  onUpdateOrder: (id: string, status: Order['status']) => void;
+  onUpdateOrder: (orderId: string, status: Order['status']) => void;
   allRepairs: RepairJob[];
-  onUpdateRepair: (r: RepairJob) => void;
-  platformLogo?: string;
+  onUpdateRepair: (repair: RepairJob) => void;
+  platformLogo: string;
   team: TeamMember[];
   onUpdateTeam: (team: TeamMember[]) => void;
   repairChats: Record<string, ChatMessage[]>;
@@ -46,1532 +45,1029 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
-    user, 
-    // User Props
-    allUsers, onAddUser, onUpdateUserAdmin,
-    // Order Props
-    allOrders, onUpdateOrder, formatPrice,
-    // Repair Props
-    allRepairs, onUpdateRepair,
-    // Product Props
-    products, onAddProduct, onUpdateProduct, onDeleteProduct,
-    // Support Props
-    supportSessions, onAdminReply, onCreateSession,
-    // CMS Props
-    landingPageConfig, onUpdateLandingPage, contactInfo, onUpdateContactInfo, onUpdatePlatformSettings,
-    contactMessages, onDeleteContactMessage, platformLogo,
-    team, onUpdateTeam,
-    // Repair Chat Props
+    user, onUpdateUser, products, onAddProduct, onUpdateProduct, onDeleteProduct,
+    onUpdatePlatformSettings, formatPrice, supportSessions, onAdminReply, onCreateSession,
+    landingPageConfig, onUpdateLandingPage, contactInfo, onUpdateContactInfo,
+    contactMessages, onDeleteContactMessage, allUsers, onAddUser, onUpdateUserAdmin,
+    allOrders, onUpdateOrder, allRepairs, onUpdateRepair, platformLogo, team, onUpdateTeam,
     repairChats, onSendRepairMessage
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    // Initial Tab State
-    const getInitialTab = () => {
-        const params = new URLSearchParams(location.search);
-        const chatRepairId = params.get('chatRepairId');
-        if (chatRepairId) return 'repairs'; // Default to repairs if linked, was 'support' but restricted now
-        if (user.role === 'FIXER') return 'repairs';
-        return 'overview';
-    };
+    // Determine default tab based on role or URL params
+    const queryParams = new URLSearchParams(location.search);
+    const initialTab = queryParams.get('tab') || 'overview';
+    const chatRepairId = queryParams.get('chatRepairId');
 
-    const [activeTab, setActiveTab] = useState(getInitialTab());
-    const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState(initialTab);
     
-    // --- User Management State ---
-    const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-    const [viewingUser, setViewingUser] = useState<User | null>(null);
-    const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [newUserData, setNewUserData] = useState<Partial<User>>({ name: '', email: '', role: 'CUSTOMER' });
-
-    // --- Repair Management State ---
-    const [viewingRepair, setViewingRepair] = useState<RepairJob | null>(null);
-    const [repairForm, setRepairForm] = useState<{ status: RepairJob['status'], cost: string, notes: string }>({ status: 'PENDING', cost: '', notes: '' });
-    const [repairChatInput, setRepairChatInput] = useState('');
-    const repairChatEndRef = useRef<HTMLDivElement>(null);
-
-    // --- Order Management State ---
-    const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
-
-    // --- Product Management State ---
+    // Admin / Management State
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+    
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-    const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
 
-    // --- Support Chat State ---
-    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-    const [chatReply, setChatReply] = useState('');
-    const chatEndRef = useRef<HTMLDivElement>(null);
+    // Repair State
+    const [selectedRepair, setSelectedRepair] = useState<RepairJob | null>(null);
+    const [repairChatInput, setRepairChatInput] = useState('');
+    const [timelineNote, setTimelineNote] = useState('');
 
-    // --- CMS State ---
-    const [cmsConfig, setCmsConfig] = useState<LandingPageConfig>(landingPageConfig);
-    const [activeCmsTab, setActiveCmsTab] = useState<'hero' | 'features' | 'trending' | 'cta' | 'contact' | 'messages' | 'settings' | 'team'>('hero');
-    const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-    const [currentTeamMember, setCurrentTeamMember] = useState<Partial<TeamMember>>({});
-    
-    // --- System State ---
-    const [isResetting, setIsResetting] = useState(false);
-    const [isLogModalOpen, setIsLogModalOpen] = useState(false);
-    const [systemLogs, setSystemLogs] = useState<{timestamp: string, level: string, message: string}[]>([
-        { timestamp: new Date().toISOString(), level: 'INFO', message: 'System initialized' },
-        { timestamp: new Date().toISOString(), level: 'INFO', message: 'Dashboard loaded successfully' },
-        { timestamp: new Date().toISOString(), level: 'INFO', message: 'Database connection verified (Neon)' },
-    ]);
+    // Logistics & Payment State
+    const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
+    const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [courierForm, setCourierForm] = useState({ courier: '', tracking: '' });
 
-    // --- Computed Lists & Filtering ---
-    const filteredUsers = useMemo(() => {
-        return allUsers.filter(u => 
-            u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            u.email.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [allUsers, searchTerm]);
+    useEffect(() => {
+        if (chatRepairId) {
+            const repair = allRepairs.find(r => r.id === chatRepairId);
+            if (repair) {
+                setSelectedRepair(repair);
+                setActiveTab('repairs');
+            }
+        }
+    }, [chatRepairId, allRepairs]);
 
-    const filteredProducts = useMemo(() => {
-        return products.filter(p => 
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [products, searchTerm]);
+    const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+    const isFixer = user.role === 'FIXER';
+    const isCustomer = user.role === 'CUSTOMER';
 
-    const myOrders = useMemo(() => {
-        if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return allOrders;
-        // In a real app, filtering would be by userId. Here we show all for admin, or mock for customer.
-        return allOrders; 
-    }, [allOrders, user]);
+    // Filter Data based on Role
+    const myOrders = isAdmin ? allOrders : allOrders.filter(o => {
+        // Assuming user filtering would happen here in a real app or backend
+        return true; 
+    });
 
     const myRepairs = useMemo(() => {
-        if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return allRepairs;
-        if (user.role === 'FIXER') {
-            // Fixers see jobs assigned to them OR jobs that are unassigned
-            return allRepairs.filter(r => r.fixerId === user.id || !r.fixerId);
-        }
+        if (isAdmin) return allRepairs;
+        if (isFixer) return allRepairs.filter(r => r.fixerId === user.id || r.status === 'PENDING'); // Fixers see assigned + pending
         return allRepairs.filter(r => r.customerId === user.id);
-    }, [allRepairs, user]);
+    }, [allRepairs, isAdmin, isFixer, user.id]);
 
-    // Analytics Data (Real Calculation from allOrders)
-    const revenueData = useMemo(() => {
-        const data: Record<string, { revenue: number, orders: number }> = {};
-        
-        allOrders.forEach(order => {
-            if (!order.date) return;
-            const date = new Date(order.date);
-            const key = date.toLocaleString('default', { month: 'short' }); // e.g., "Oct"
-            
-            if (!data[key]) {
-                data[key] = { revenue: 0, orders: 0 };
-            }
-            data[key].revenue += order.total;
-            data[key].orders += 1;
-        });
+    const stats = [
+        { label: 'Total Orders', value: myOrders.length, icon: ShoppingBag, color: 'bg-blue-500' },
+        { label: 'Active Repairs', value: myRepairs.filter(r => r.status !== 'COMPLETED' && r.status !== 'DELIVERED').length, icon: Wrench, color: 'bg-orange-500' },
+        { label: 'Total Spent', value: formatPrice(myOrders.reduce((acc, o) => acc + o.total, 0)), icon: DollarSign, color: 'bg-green-500', hide: isFixer },
+    ];
 
-        const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const sortedData = Object.entries(data).sort((a, b) => {
-            return monthOrder.indexOf(a[0]) - monthOrder.indexOf(b[0]);
-        });
+    if (isAdmin) {
+        stats.push(
+            { label: 'Total Users', value: allUsers.length, icon: Users, color: 'bg-purple-500', hide: false },
+            { label: 'Open Support', value: supportSessions.filter(s => s.status === 'OPEN').length, icon: MessageSquare, color: 'bg-red-500', hide: false }
+        );
+    }
 
-        if (sortedData.length === 0) {
-             return monthOrder.slice(0, 6).map(m => ({ name: m, revenue: 0, orders: 0 }));
-        }
+    // --- Repair Handlers ---
 
-        return sortedData.map(([name, stats]) => ({
-            name,
-            revenue: stats.revenue,
-            orders: stats.orders
-        }));
-    }, [allOrders]);
+    const handleStatusChange = (repair: RepairJob, newStatus: RepairJob['status']) => {
+        const updatedRepair = {
+            ...repair,
+            status: newStatus,
+            timeline: [
+                { status: newStatus, date: new Date().toISOString(), note: `Status updated to ${newStatus}` },
+                ...(repair.timeline || [])
+            ]
+        };
+        onUpdateRepair(updatedRepair);
+        setSelectedRepair(updatedRepair);
+    };
 
-    // Scroll to bottom of chat when opening a session
-    useEffect(() => {
-        if (activeSessionId) {
-            setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        }
-    }, [activeSessionId, supportSessions]);
-
-    // Scroll to bottom of repair chat
-    useEffect(() => {
-        if (viewingRepair) {
-            setTimeout(() => repairChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        }
-    }, [viewingRepair, repairChats]);
-
-    // Handle Chat Navigation from URL
-    useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const chatRepairId = params.get('chatRepairId');
-        
-        if (chatRepairId && allRepairs.length > 0) {
-            const repair = allRepairs.find(r => r.id === chatRepairId);
-            if (repair && repair.customerId) {
-                 setViewingRepair(repair);
-                 setActiveTab('repairs');
-            }
-        }
-    }, [location.search, allRepairs, user.role]);
-
-    // --- Handlers ---
-
-    const addLog = (level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS', message: string) => {
-        setSystemLogs(prev => [{
-            timestamp: new Date().toISOString(),
-            level,
-            message
-        }, ...prev]);
+    const handleAddTimelineNote = () => {
+        if (!selectedRepair || !timelineNote.trim()) return;
+        const updatedRepair = {
+            ...selectedRepair,
+            timeline: [
+                { status: 'NOTE', date: new Date().toISOString(), note: timelineNote },
+                ...(selectedRepair.timeline || [])
+            ]
+        };
+        onUpdateRepair(updatedRepair);
+        setSelectedRepair(updatedRepair);
+        setTimelineNote('');
     };
 
     const handleClaimRepair = (repair: RepairJob) => {
-        onUpdateRepair({
+        const updatedRepair = {
             ...repair,
             fixerId: user.id,
-            status: 'DIAGNOSING'
-        });
-        addLog('INFO', `Repair ${repair.id} claimed by ${user.name}`);
-    };
-
-    const handleAddUser = (e: React.FormEvent) => {
-        e.preventDefault();
-        const newUser: User = {
-            id: Date.now().toString(),
-            name: newUserData.name || 'New User',
-            email: newUserData.email || '',
-            role: newUserData.role || 'CUSTOMER',
-            avatar: `https://ui-avatars.com/api/?name=${newUserData.name}&background=random`
+            status: 'DIAGNOSING' as const,
+            timeline: [
+                { status: 'CLAIMED', date: new Date().toISOString(), note: `Technician ${user.name} assigned` },
+                ...(repair.timeline || [])
+            ]
         };
-        onAddUser(newUser);
-        setIsAddUserModalOpen(false);
-        setNewUserData({ name: '', email: '', role: 'CUSTOMER' });
+        onUpdateRepair(updatedRepair);
+        setSelectedRepair(updatedRepair);
     };
 
-    const handleProductSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const productData: Product = {
-            id: currentProduct.id || `p-${Date.now()}`,
-            name: currentProduct.name || 'New Product',
-            price: Number(currentProduct.price) || 0,
-            category: currentProduct.category || 'Others',
-            image: currentProduct.image || 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&q=80&w=800',
-            rating: currentProduct.rating || 0,
-            reviews: currentProduct.reviews || 0,
-            description: currentProduct.description || '',
-            specs: currentProduct.specs || {},
-            status: currentProduct.status || 'IN_STOCK',
-            isBestSeller: currentProduct.isBestSeller || false
-        };
-
-        if (currentProduct.id) {
-            onUpdateProduct(productData);
-        } else {
-            onAddProduct(productData);
-        }
-        setIsProductModalOpen(false);
-        setCurrentProduct({});
-    };
-
-    const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result as string;
-                setCurrentProduct(prev => ({ ...prev, image: base64 }));
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const openProductModal = (product?: Product) => {
-        setCurrentProduct(product || { status: 'IN_STOCK', category: 'Phone' });
-        setIsProductModalOpen(true);
-    };
-
-    const openRepairModal = (repair: RepairJob) => {
-        setViewingRepair(repair);
-        setRepairForm({
-            status: repair.status,
-            cost: repair.estimatedCost ? repair.estimatedCost.toString() : '',
-            notes: repair.aiDiagnosis || '' 
-        });
-    };
-
-    const handleSaveRepair = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (viewingRepair) {
-            onUpdateRepair({
-                ...viewingRepair,
-                status: repairForm.status,
-                estimatedCost: repairForm.cost ? parseFloat(repairForm.cost) : undefined,
-                aiDiagnosis: repairForm.notes || viewingRepair.aiDiagnosis
-            });
-            setViewingRepair(null);
-        }
-    };
-
-    const handleSendRepairChat = () => {
-        if (!viewingRepair || !repairChatInput.trim()) return;
-        onSendRepairMessage(viewingRepair.id, repairChatInput, user.id);
-        setRepairChatInput('');
-    };
-
-    const handleSendChat = () => {
-        if (activeSessionId && chatReply.trim()) {
-            onAdminReply(activeSessionId, chatReply);
-            setChatReply('');
-        }
-    };
-    
-    const handleSaveCMS = () => {
-        onUpdateLandingPage(cmsConfig);
-        alert('Landing page configuration updated successfully!');
-    };
-
-    const handleHeroImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const files = Array.from(e.target.files);
-            files.forEach(file => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64 = reader.result as string;
-                    setCmsConfig(prev => ({
-                        ...prev,
-                        hero: {
-                            ...prev.hero,
-                            images: [...(prev.hero.images || []), base64]
-                        }
-                    }));
-                };
-                reader.readAsDataURL(file as Blob);
-            });
-        }
-    };
-
-    const removeHeroImage = (index: number) => {
-        setCmsConfig(prev => ({
-            ...prev,
-            hero: {
-                ...prev.hero,
-                images: prev.hero.images.filter((_, i) => i !== index)
-            }
-        }));
-    };
-
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result as string;
-                onUpdatePlatformSettings({ logo: base64 });
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleTeamMemberImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result as string;
-                setCurrentTeamMember(prev => ({ ...prev, image: base64 }));
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleTeamMemberSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const newMember: TeamMember = {
-            id: currentTeamMember.id || `t-${Date.now()}`,
-            name: currentTeamMember.name || 'New Member',
-            role: currentTeamMember.role || 'Role',
-            image: currentTeamMember.image || 'https://ui-avatars.com/api/?name=New+Member&background=random'
-        };
-
-        if (currentTeamMember.id) {
-            onUpdateTeam(team.map(m => m.id === newMember.id ? newMember : m));
-        } else {
-            onUpdateTeam([...team, newMember]);
-        }
-        setIsTeamModalOpen(false);
-        setCurrentTeamMember({});
-    };
-
-    const handleDeleteTeamMember = (id: string) => {
-        if (window.confirm("Are you sure you want to remove this team member?")) {
-            onUpdateTeam(team.filter(m => m.id !== id));
-        }
-    };
-
-    const handleResetDemoData = async () => {
-        if (!confirm("Are you sure you want to reinstall the product catalog? This will add seed products to the database if they don't exist.")) return;
+    const handleAssignCourier = () => {
+        if (!selectedRepair || !courierForm.courier) return;
         
-        setIsResetting(true);
-        addLog('INFO', 'Starting product catalog seeding...');
-        try {
-            for (const p of SEED_PRODUCTS) {
-               // Check if exists to avoid duplicates in local state logic
-               const exists = products.some(ex => ex.id === p.id);
-               if (!exists) {
-                   onAddProduct(p);
-                   addLog('INFO', `Added product: ${p.name}`);
-               } else {
-                   // Optional: Force update to match seed data
-                   onUpdateProduct(p);
-                   addLog('INFO', `Updated existing product: ${p.name}`);
-               }
-               // Small delay to prevent UI freezing and API rate limits
-               await new Promise(r => setTimeout(r, 50)); 
-            }
-            addLog('SUCCESS', 'Product catalog successfully reinstalled and updated.');
-            alert("Product catalog has been successfully reinstalled and updated.");
-        } catch (e: any) {
-            console.error(e);
-            addLog('ERROR', `Failed to seed data: ${e.message}`);
-            alert("Failed to seed data. Check console for details.");
-        } finally {
-            setIsResetting(false);
-        }
+        const updatedRepair = {
+            ...selectedRepair,
+            status: 'PICKED_UP' as const, // In Transit
+            courier: courierForm.courier,
+            trackingNumber: courierForm.tracking,
+            timeline: [
+                { 
+                    status: 'LOGISTICS', 
+                    date: new Date().toISOString(), 
+                    note: `Courier ${courierForm.courier} assigned. Tracking: ${courierForm.tracking}` 
+                },
+                ...(selectedRepair.timeline || [])
+            ]
+        };
+        
+        onUpdateRepair(updatedRepair);
+        setIsCourierModalOpen(false);
+        setSelectedRepair(null); // Clear selection or keep it
+        setCourierForm({ courier: '', tracking: '' });
     };
 
-    const handleClearCache = () => {
-        if (window.confirm("Are you sure you want to clear the local system cache? This will reset local settings, CMS drafts, and the cart.")) {
-            localStorage.removeItem('blucell_cart');
-            localStorage.removeItem('blucell_landing_config');
-            localStorage.removeItem('blucell_contact_info');
-            localStorage.removeItem('blucell_team');
-            // We keep branding (logo) intentionally for continuity
-            addLog('WARN', 'System cache cleared manually by Super Admin.');
-            setTimeout(() => {
-                window.location.reload();
-            }, 500);
-        }
+    const handlePayment = () => {
+        if (!selectedRepair) return;
+
+        // Simulate successful payment
+        const updatedRepair = {
+            ...selectedRepair,
+            isPaid: true,
+            timeline: [
+                {
+                    status: 'PAID',
+                    date: new Date().toISOString(),
+                    note: `Payment of ${formatPrice(selectedRepair.estimatedCost || 0)} received.`
+                },
+                ...(selectedRepair.timeline || [])
+            ]
+        };
+        onUpdateRepair(updatedRepair);
+        setIsPaymentModalOpen(false);
+        setSelectedRepair(updatedRepair);
     };
 
     // --- Render Functions ---
 
-    const renderSidebar = () => {
-        const tabs = [
-            { id: 'overview', label: 'Overview', icon: LayoutTemplate, roles: ['ADMIN', 'FIXER', 'CUSTOMER', 'SUPER_ADMIN'] },
-            { id: 'users', label: 'Users', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] },
-            { id: 'products', label: 'Products', icon: ShoppingBag, roles: ['ADMIN', 'SUPER_ADMIN'] },
-            { id: 'orders', label: 'Orders', icon: Package, roles: ['ADMIN', 'CUSTOMER', 'SUPER_ADMIN'] },
-            { id: 'repairs', label: 'Repairs', icon: Wrench, roles: ['ADMIN', 'FIXER', 'CUSTOMER', 'SUPER_ADMIN'] },
-            { id: 'cms', label: 'Content & Settings', icon: Settings, roles: ['ADMIN', 'SUPER_ADMIN'] },
-            { id: 'support', label: 'Support Chat', icon: MessageSquare, roles: ['ADMIN', 'SUPER_ADMIN'] }, // Removed FIXER
-            { id: 'system', label: 'Super Admin', icon: ShieldAlert, roles: ['SUPER_ADMIN'] },
-        ];
-
-        return (
-            <Card className="md:w-64 h-fit p-4 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-visible sticky top-24 z-30">
-                {tabs.filter(t => t.roles.includes(user.role)).map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => { setActiveTab(tab.id); setSearchTerm(''); }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors whitespace-nowrap text-sm font-medium ${
-                            activeTab === tab.id 
-                            ? 'bg-blucell-600 text-white shadow-lg shadow-blucell-500/20' 
-                            : 'text-silver-600 dark:text-silver-400 hover:bg-silver-100 dark:hover:bg-silver-800'
-                        }`}
-                    >
-                        <tab.icon className="w-4 h-4" />
-                        <span>{tab.label}</span>
+    const renderSidebar = () => (
+        <div className="w-full md:w-64 bg-white dark:bg-silver-900 border-r border-silver-200 dark:border-silver-800 flex-shrink-0 flex flex-col h-full min-h-[calc(100vh-4rem)]">
+            <div className="p-6">
+                 <div className="flex items-center gap-3 mb-6">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border border-silver-200 dark:border-silver-700">
+                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-sm text-silver-900 dark:text-white line-clamp-1">{user.name}</h3>
+                        <Badge color={isAdmin ? 'red' : isFixer ? 'blue' : 'green'}>{user.role}</Badge>
+                    </div>
+                 </div>
+                 <div className="space-y-1">
+                    <button onClick={() => setActiveTab('overview')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'overview' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                        <LayoutDashboard className="w-4 h-4" /> Overview
                     </button>
-                ))}
-            </Card>
-        );
-    };
+                    <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                        <ShoppingBag className="w-4 h-4" /> Orders
+                    </button>
+                    <button onClick={() => setActiveTab('repairs')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'repairs' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                        <Wrench className="w-4 h-4" /> Repairs
+                    </button>
+                    {isAdmin && (
+                        <>
+                            <div className="pt-4 pb-2 text-xs font-semibold text-silver-400 uppercase tracking-wider">Admin</div>
+                            <button onClick={() => setActiveTab('logistics')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'logistics' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                                <Truck className="w-4 h-4" /> Logistics
+                            </button>
+                            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                                <Users className="w-4 h-4" /> Users
+                            </button>
+                            <button onClick={() => setActiveTab('products')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'products' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                                <Package className="w-4 h-4" /> Inventory
+                            </button>
+                             <button onClick={() => setActiveTab('content')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'content' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                                <LayoutTemplate className="w-4 h-4" /> Content
+                            </button>
+                            <button onClick={() => setActiveTab('support')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'support' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                                <MessageSquare className="w-4 h-4" /> Support Chats
+                            </button>
+                            <button onClick={() => setActiveTab('messages')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'messages' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                                <FileText className="w-4 h-4" /> Contact Msgs
+                            </button>
+                        </>
+                    )}
+                 </div>
+            </div>
+            <div className="mt-auto p-4 border-t border-silver-200 dark:border-silver-800">
+                <Button variant="ghost" className="w-full justify-start text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => navigate('/auth')}>
+                    <LogOut className="w-4 h-4 mr-2" /> Sign Out
+                </Button>
+            </div>
+        </div>
+    );
 
     const renderOverview = () => (
-        <div className="space-y-6 animate-fade-in">
-            {/* Stats Cards */}
+        <div className="space-y-6 animate-fade-in-up">
+            <h2 className="text-2xl font-bold">Dashboard Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="p-6">
-                    <div className="flex justify-between items-start">
+                {stats.filter(s => !s.hide).map((stat, idx) => (
+                    <Card key={idx} className="p-6 flex items-center gap-4">
+                        <div className={`p-4 rounded-full text-white ${stat.color}`}>
+                            <stat.icon className="w-6 h-6" />
+                        </div>
                         <div>
-                            <p className="text-silver-500 text-sm font-medium">Total Orders</p>
-                            <h3 className="text-2xl font-bold mt-1 text-silver-900 dark:text-white">{allOrders.length}</h3>
-                        </div>
-                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg">
-                            <Package className="w-6 h-6" />
-                        </div>
-                    </div>
-                </Card>
-                <Card className="p-6">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-silver-500 text-sm font-medium">Active Repairs</p>
-                            <h3 className="text-2xl font-bold mt-1 text-silver-900 dark:text-white">{allRepairs.filter(r => r.status !== 'COMPLETED' && r.status !== 'DELIVERED').length}</h3>
-                        </div>
-                        <div className="p-3 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-lg">
-                            <Wrench className="w-6 h-6" />
-                        </div>
-                    </div>
-                </Card>
-                 {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                     <>
-                        <Card className="p-6">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-silver-500 text-sm font-medium">Total Users</p>
-                                    <h3 className="text-2xl font-bold mt-1 text-silver-900 dark:text-white">{allUsers.length}</h3>
-                                </div>
-                                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg">
-                                    <Users className="w-6 h-6" />
-                                </div>
-                            </div>
-                        </Card>
-                        <Card className="p-6">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-silver-500 text-sm font-medium">Revenue</p>
-                                    <h3 className="text-2xl font-bold mt-1 text-silver-900 dark:text-white">{formatPrice(allOrders.reduce((sum, o) => sum + o.total, 0))}</h3>
-                                </div>
-                                <div className="p-3 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg">
-                                    <DollarSign className="w-6 h-6" />
-                                </div>
-                            </div>
-                        </Card>
-                     </>
-                 )}
-            </div>
-
-            {/* Analytics Chart */}
-            {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                <Card className="p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="font-bold text-lg text-silver-900 dark:text-white flex items-center gap-2">
-                            <BarChartIcon className="w-5 h-5 text-blucell-600" /> Revenue Analytics
-                        </h3>
-                    </div>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={revenueData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.3} />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} tickFormatter={(val) => `$${val}`} />
-                                <Tooltip 
-                                    contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                />
-                                <Bar dataKey="revenue" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={50} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-lg text-silver-900 dark:text-white">Recent Repairs</h3>
-                        <Button variant="ghost" size="sm" onClick={() => setActiveTab('repairs')}>View All</Button>
-                    </div>
-                    <div className="space-y-4">
-                        {myRepairs.slice(0, 3).map(repair => (
-                            <div key={repair.id} className="flex items-center justify-between p-3 border border-silver-100 dark:border-silver-800 rounded-lg hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-silver-100 dark:bg-silver-800 rounded-full">
-                                        <Wrench className="w-4 h-4 text-silver-500" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-sm text-silver-900 dark:text-white">{repair.deviceType}</p>
-                                        <p className="text-xs text-silver-500">{repair.issueDescription.substring(0, 30)}...</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <Badge color={repair.status === 'COMPLETED' ? 'green' : 'blue'}>{repair.status}</Badge>
-                                    {!repair.fixerId && (
-                                        <span className="block text-[10px] text-orange-500 mt-1">Unassigned</span>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                         {myRepairs.length === 0 && <p className="text-sm text-silver-500 italic">No active repairs.</p>}
-                    </div>
-                </Card>
-                 <Card className="p-6">
-                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-lg text-silver-900 dark:text-white">Recent Orders</h3>
-                        <Button variant="ghost" size="sm" onClick={() => setActiveTab('orders')}>View All</Button>
-                    </div>
-                    <div className="space-y-4">
-                        {myOrders.slice(0, 3).map(order => (
-                            <div key={order.id} className="flex items-center justify-between p-3 border border-silver-100 dark:border-silver-800 rounded-lg hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-silver-100 dark:bg-silver-800 rounded-full">
-                                        <Package className="w-4 h-4 text-silver-500" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-sm text-silver-900 dark:text-white">Order #{order.id}</p>
-                                        <p className="text-xs text-silver-500">{order.date}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-sm text-silver-900 dark:text-white">{formatPrice(order.total)}</p>
-                                    <span className="text-xs text-silver-500 capitalize">{order.status.toLowerCase()}</span>
-                                </div>
-                            </div>
-                        ))}
-                         {myOrders.length === 0 && <p className="text-sm text-silver-500 italic">No orders yet.</p>}
-                    </div>
-                </Card>
-            </div>
-        </div>
-    );
-
-    const renderUsers = () => (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center">
-                <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver-400" />
-                    <Input 
-                        placeholder="Search users..." 
-                        className="pl-10" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <Button onClick={() => setIsAddUserModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" /> Add User
-                </Button>
-            </div>
-
-            <Card className="overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-silver-50 dark:bg-silver-800 text-silver-500 font-medium border-b border-silver-100 dark:border-silver-800">
-                            <tr>
-                                <th className="px-4 py-3">User</th>
-                                <th className="px-4 py-3">Role</th>
-                                <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
-                            {filteredUsers.map(u => (
-                                <tr key={u.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-3">
-                                            <img src={u.avatar} alt="" className="w-8 h-8 rounded-full bg-silver-200 object-cover" />
-                                            <div>
-                                                <p className="font-medium text-silver-900 dark:text-white">{u.name}</p>
-                                                <p className="text-xs text-silver-500">{u.email}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <Badge color={u.role === 'ADMIN' ? 'red' : u.role === 'FIXER' ? 'yellow' : 'blue'}>{u.role}</Badge>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {u.role === 'FIXER' ? (
-                                            <StatusIndicator status={u.availabilityStatus || 'OFFLINE'} />
-                                        ) : (
-                                            <span className="text-silver-400">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        <button 
-                                            className="text-silver-400 hover:text-blucell-600 transition-colors p-1"
-                                            onClick={() => setEditingUser(u)}
-                                        >
-                                            <Edit className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
-
-            {isAddUserModalOpen && (
-                <Modal title="Add New User" onClose={() => setIsAddUserModalOpen(false)}>
-                    <form onSubmit={handleAddUser} className="space-y-4">
-                        <Input label="Full Name" value={newUserData.name} onChange={e => setNewUserData({...newUserData, name: e.target.value})} required />
-                        <Input label="Email" type="email" value={newUserData.email} onChange={e => setNewUserData({...newUserData, email: e.target.value})} required />
-                        <div>
-                            <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Role</label>
-                            <select 
-                                className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm"
-                                value={newUserData.role}
-                                onChange={(e) => setNewUserData({...newUserData, role: e.target.value as UserRole})}
-                            >
-                                <option value="CUSTOMER">Customer</option>
-                                <option value="FIXER">Fixer</option>
-                                <option value="ADMIN">Admin</option>
-                            </select>
-                        </div>
-                        <div className="flex justify-end pt-4">
-                            <Button type="submit">Create User</Button>
-                        </div>
-                    </form>
-                </Modal>
-            )}
-
-            {editingUser && (
-                <Modal title="Edit User" onClose={() => setEditingUser(null)}>
-                     <div className="space-y-4">
-                        <Input label="Full Name" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} />
-                        <Input label="Email" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} />
-                         <div>
-                            <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Role</label>
-                            <select 
-                                className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm"
-                                value={editingUser.role}
-                                onChange={(e) => setEditingUser({...editingUser, role: e.target.value as UserRole})}
-                            >
-                                <option value="CUSTOMER">Customer</option>
-                                <option value="FIXER">Fixer</option>
-                                <option value="ADMIN">Admin</option>
-                            </select>
-                        </div>
-                        <div className="flex justify-end pt-4">
-                            <Button onClick={() => { onUpdateUserAdmin(editingUser); setEditingUser(null); }}>Save Changes</Button>
-                        </div>
-                     </div>
-                </Modal>
-            )}
-        </div>
-    );
-
-    const renderProducts = () => (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center">
-                 <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver-400" />
-                    <Input 
-                        placeholder="Search products..." 
-                        className="pl-10" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <Button onClick={() => openProductModal()}>
-                    <Plus className="w-4 h-4 mr-2" /> Add Product
-                </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredProducts.map(product => (
-                    <Card key={product.id} className="group overflow-hidden flex flex-col h-full border-silver-200 dark:border-silver-800">
-                        <div className="relative aspect-square bg-silver-100 dark:bg-silver-800">
-                            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openProductModal(product)} className="p-1.5 bg-white dark:bg-silver-800 rounded-md shadow-sm hover:text-blucell-600">
-                                    <Edit className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => onDeleteProduct(product.id)} className="p-1.5 bg-white dark:bg-silver-800 rounded-md shadow-sm hover:text-red-600">
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-4 flex flex-col flex-1">
-                            <h3 className="font-bold text-silver-900 dark:text-white line-clamp-1">{product.name}</h3>
-                            <p className="text-sm text-silver-500 mb-2">{product.category}</p>
-                            <div className="mt-auto flex justify-between items-center">
-                                <span className="font-bold">{formatPrice(product.price)}</span>
-                                <Badge color={product.status === 'IN_STOCK' ? 'green' : 'red'}>{product.status === 'IN_STOCK' ? 'In Stock' : 'Out'}</Badge>
-                            </div>
+                            <p className="text-sm text-silver-500">{stat.label}</p>
+                            <h4 className="text-2xl font-bold">{stat.value}</h4>
                         </div>
                     </Card>
                 ))}
             </div>
 
-            {isProductModalOpen && (
-                <Modal title={currentProduct.id ? 'Edit Product' : 'Add Product'} onClose={() => setIsProductModalOpen(false)}>
-                    <form onSubmit={handleProductSubmit} className="space-y-4">
-                        <Input label="Name" value={currentProduct.name || ''} onChange={e => setCurrentProduct({...currentProduct, name: e.target.value})} required />
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input label="Price" type="number" value={currentProduct.price || ''} onChange={e => setCurrentProduct({...currentProduct, price: Number(e.target.value)})} required />
-                            <div>
-                                <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Category</label>
-                                <select 
-                                    className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm"
-                                    value={currentProduct.category}
-                                    onChange={e => setCurrentProduct({...currentProduct, category: e.target.value as any})}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-6">
+                    <h3 className="font-bold text-lg mb-4">Recent Repairs</h3>
+                    {myRepairs.length > 0 ? (
+                        <div className="space-y-4">
+                            {myRepairs.slice(0, 3).map(repair => (
+                                <div key={repair.id} className="flex items-center justify-between p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-silver-100 dark:bg-silver-800 rounded-lg">
+                                            {repair.deviceType.toLowerCase().includes('phone') ? <Smartphone className="w-5 h-5" /> : 
+                                             repair.deviceType.toLowerCase().includes('laptop') ? <Briefcase className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm">{repair.deviceType}</p>
+                                            <p className="text-xs text-silver-500">{repair.issueDescription}</p>
+                                        </div>
+                                    </div>
+                                    <Badge color={repair.status === 'COMPLETED' ? 'green' : 'blue'}>{repair.status}</Badge>
+                                </div>
+                            ))}
+                            <Button variant="ghost" size="sm" onClick={() => setActiveTab('repairs')}>View All</Button>
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-silver-400">
+                            <Wrench className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                            <p>No active repairs</p>
+                            <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/repair')}>Book Repair</Button>
+                        </div>
+                    )}
+                </Card>
+
+                 <Card className="p-6">
+                    <h3 className="font-bold text-lg mb-4">Recent Orders</h3>
+                    {myOrders.length > 0 ? (
+                         <div className="space-y-4">
+                            {myOrders.slice(0, 3).map(order => (
+                                <div key={order.id} className="flex items-center justify-between p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-silver-100 dark:bg-silver-800 rounded-lg">
+                                            <Package className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm">Order #{order.id}</p>
+                                            <p className="text-xs text-silver-500">{order.items.length} items • {formatPrice(order.total)}</p>
+                                        </div>
+                                    </div>
+                                    <Badge color={order.status === 'DELIVERED' ? 'green' : 'yellow'}>{order.status}</Badge>
+                                </div>
+                            ))}
+                            <Button variant="ghost" size="sm" onClick={() => setActiveTab('orders')}>View All</Button>
+                        </div>
+                    ) : (
+                         <div className="text-center py-8 text-silver-400">
+                            <ShoppingBag className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                            <p>No orders yet</p>
+                            <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/shop')}>Shop Now</Button>
+                        </div>
+                    )}
+                </Card>
+            </div>
+        </div>
+    );
+
+    const renderRepairs = () => (
+        <div className="space-y-6 h-full flex flex-col">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Repairs</h2>
+                {!isFixer && <Button onClick={() => navigate('/repair')}><Plus className="w-4 h-4 mr-2" /> Book New Repair</Button>}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+                {/* List */}
+                <Card className="lg:col-span-1 overflow-y-auto max-h-[calc(100vh-12rem)]">
+                     {myRepairs.length === 0 ? (
+                        <div className="p-8 text-center text-silver-500">No repairs found.</div>
+                    ) : (
+                        <div className="divide-y divide-silver-100 dark:divide-silver-800">
+                            {myRepairs.map(repair => (
+                                <div 
+                                    key={repair.id} 
+                                    className={`p-4 cursor-pointer hover:bg-silver-50 dark:hover:bg-silver-800 transition-colors ${selectedRepair?.id === repair.id ? 'bg-blucell-50 dark:bg-blucell-900/10' : ''}`}
+                                    onClick={() => setSelectedRepair(repair)}
                                 >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h4 className="font-bold text-sm">{repair.deviceType}</h4>
+                                        <Badge color={repair.status === 'COMPLETED' ? 'green' : 'blue'}>{repair.status}</Badge>
+                                    </div>
+                                    <p className="text-xs text-silver-500 line-clamp-2 mb-2">{repair.issueDescription}</p>
+                                    <div className="flex justify-between items-center text-xs text-silver-400">
+                                        <span>ID: {repair.id}</span>
+                                        <span>{repair.dateBooked}</span>
+                                    </div>
+                                    {isFixer && !repair.fixerId && (
+                                        <div className="mt-2 text-xs text-orange-500 font-bold">Unclaimed</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </Card>
+
+                {/* Details & Chat */}
+                <Card className="lg:col-span-2 p-0 flex flex-col overflow-hidden max-h-[calc(100vh-12rem)]">
+                    {selectedRepair ? (
+                        <div className="flex flex-col h-full">
+                            <div className="p-6 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-900">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="text-xl font-bold">{selectedRepair.deviceType} Repair</h3>
+                                            {selectedRepair.isPaid && <Badge color="green">Paid</Badge>}
+                                            {selectedRepair.estimatedCost && selectedRepair.estimatedCost > 0 && !selectedRepair.isPaid && <Badge color="yellow">Unpaid</Badge>}
+                                        </div>
+                                        <p className="text-sm text-silver-500">Ticket ID: {selectedRepair.id}</p>
+                                    </div>
+                                    {(isAdmin || isFixer) && (
+                                        <select 
+                                            value={selectedRepair.status}
+                                            onChange={(e) => handleStatusChange(selectedRepair, e.target.value as any)}
+                                            className="bg-white dark:bg-silver-800 border border-silver-300 dark:border-silver-700 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blucell-500 outline-none"
+                                        >
+                                            {['PENDING', 'PICKED_UP', 'RECEIVED', 'DIAGNOSING', 'IN_PROGRESS', 'COMPLETED', 'DELIVERED'].map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    {isCustomer && selectedRepair.estimatedCost && selectedRepair.estimatedCost > 0 && !selectedRepair.isPaid && (
+                                        <Button size="sm" onClick={() => setIsPaymentModalOpen(true)}>Pay Invoice</Button>
+                                    )}
+                                </div>
+                                
+                                <div className="mt-4 flex flex-wrap gap-4">
+                                    {selectedRepair.aiDiagnosis && (
+                                        <div className="p-3 bg-blucell-50 dark:bg-blucell-900/10 border border-blucell-100 dark:border-blucell-800 rounded-lg flex-1 min-w-[200px]">
+                                            <div className="flex items-center gap-2 mb-1 text-blucell-700 dark:text-blucell-300 font-bold text-xs uppercase tracking-wide">
+                                                <Cpu className="w-3 h-3" /> AI Diagnosis
+                                            </div>
+                                            <p className="text-sm text-silver-700 dark:text-silver-300">{selectedRepair.aiDiagnosis}</p>
+                                        </div>
+                                    )}
+                                    {isFixer && !selectedRepair.fixerId && (
+                                        <div className="flex items-center justify-center p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                                            <Button size="sm" className="w-full" onClick={() => handleClaimRepair(selectedRepair)}>
+                                                Claim Ticket
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-silver-500">Method:</span> <span className="font-medium">{selectedRepair.deliveryMethod}</span>
+                                    </div>
+                                    {selectedRepair.estimatedCost && (
+                                        <div>
+                                            <span className="text-silver-500">Est. Cost:</span> <span className="font-medium">{formatPrice(selectedRepair.estimatedCost)}</span>
+                                        </div>
+                                    )}
+                                    {selectedRepair.courier && (
+                                        <div className="col-span-2">
+                                            <span className="text-silver-500">Courier:</span> <span className="font-medium">{selectedRepair.courier} (Tracking: {selectedRepair.trackingNumber})</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Main Content Area - Split between Timeline and Chat */}
+                            <div className="flex-1 overflow-y-auto bg-silver-50/50 dark:bg-silver-950/50 grid grid-cols-1 md:grid-cols-2">
+                                {/* Left: Timeline */}
+                                <div className="p-6 border-r border-silver-100 dark:border-silver-800">
+                                    <h4 className="font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wider text-silver-500">
+                                        <History className="w-4 h-4" /> Repair Timeline
+                                    </h4>
+                                    
+                                    {(isAdmin || isFixer) && (
+                                        <div className="mb-6 flex gap-2">
+                                            <Input 
+                                                placeholder="Add a progress note..." 
+                                                value={timelineNote} 
+                                                onChange={(e) => setTimelineNote(e.target.value)} 
+                                                className="text-sm"
+                                            />
+                                            <Button size="sm" onClick={handleAddTimelineNote} disabled={!timelineNote.trim()}>
+                                                Add
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    <div className="relative pl-4 border-l-2 border-silver-200 dark:border-silver-800 space-y-6">
+                                        {(selectedRepair.timeline && selectedRepair.timeline.length > 0) ? selectedRepair.timeline.map((event, i) => (
+                                            <div key={i} className="relative animate-fade-in">
+                                                <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-silver-900 ${
+                                                    event.status === 'NOTE' ? 'bg-silver-400' : 
+                                                    event.status === 'PAID' ? 'bg-green-500' :
+                                                    'bg-blucell-500'
+                                                }`}></div>
+                                                <div className="flex justify-between items-start">
+                                                    <p className={`font-medium text-sm ${event.status === 'NOTE' ? 'text-silver-600 dark:text-silver-400' : 'text-silver-900 dark:text-white'}`}>
+                                                        {event.status === 'NOTE' ? 'Note Added' : event.status}
+                                                    </p>
+                                                    <span className="text-[10px] text-silver-400">{new Date(event.date).toLocaleDateString()}</span>
+                                                </div>
+                                                {event.note && (
+                                                    <p className="text-xs text-silver-500 mt-1 bg-white dark:bg-silver-800 p-2 rounded border border-silver-100 dark:border-silver-700">
+                                                        {event.note}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )) : (
+                                            <div className="relative">
+                                                <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-blucell-500 border-2 border-white dark:border-silver-900"></div>
+                                                <p className="font-medium text-sm">Ticket Created</p>
+                                                <p className="text-xs text-silver-500">{new Date(selectedRepair.dateBooked).toLocaleDateString()}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right: Chat */}
+                                <div className="p-4 flex flex-col h-full max-h-[500px] md:max-h-none">
+                                    <h4 className="font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wider text-silver-500">
+                                        <MessageSquare className="w-4 h-4" /> Technician Chat
+                                    </h4>
+                                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+                                        {(repairChats[selectedRepair.id] || []).map((msg, idx) => {
+                                            const isMe = msg.senderId === user.id;
+                                            return (
+                                                <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-[90%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                                                        isMe ? 'bg-blucell-600 text-white rounded-br-none' 
+                                                        : 'bg-white dark:bg-silver-800 dark:text-silver-100 rounded-bl-none border border-silver-200 dark:border-silver-700'
+                                                    }`}>
+                                                        <p>{msg.text}</p>
+                                                        <span className={`text-[10px] block mt-1 text-right ${isMe ? 'text-blucell-100' : 'text-silver-400'}`}>
+                                                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {(repairChats[selectedRepair.id] || []).length === 0 && (
+                                            <div className="text-center text-silver-400 text-sm mt-8">
+                                                <p>Start a conversation about this repair.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            className="flex-1 bg-white dark:bg-silver-800 border border-silver-200 dark:border-silver-700 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blucell-500 outline-none"
+                                            placeholder="Type a message..."
+                                            value={repairChatInput}
+                                            onChange={(e) => setRepairChatInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && (onSendRepairMessage(selectedRepair.id, repairChatInput, user.id), setRepairChatInput(''))}
+                                        />
+                                        <Button 
+                                            size="sm" 
+                                            className="rounded-full w-9 h-9 p-0 flex items-center justify-center"
+                                            onClick={() => {
+                                                if (repairChatInput.trim()) {
+                                                    onSendRepairMessage(selectedRepair.id, repairChatInput, user.id);
+                                                    setRepairChatInput('');
+                                                }
+                                            }}
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-silver-400">
+                            <ClipboardList className="w-16 h-16 mb-4 opacity-20" />
+                            <p>Select a repair ticket to view timeline & details</p>
+                        </div>
+                    )}
+                </Card>
+            </div>
+
+            {/* Payment Modal */}
+            {isPaymentModalOpen && selectedRepair && (
+                <Modal title="Pay Repair Invoice" onClose={() => setIsPaymentModalOpen(false)}>
+                    <div className="space-y-6">
+                        <div className="text-center p-6 bg-silver-50 dark:bg-silver-800 rounded-lg">
+                            <p className="text-sm text-silver-500 mb-1">Total Due for Repair #{selectedRepair.id}</p>
+                            <h2 className="text-3xl font-bold text-blucell-600 dark:text-blucell-400">{formatPrice(selectedRepair.estimatedCost || 0)}</h2>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-sm">Payment Method</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button className="p-4 border border-blucell-600 bg-blucell-50 dark:bg-blucell-900/20 text-blucell-700 dark:text-blucell-300 rounded-lg flex flex-col items-center justify-center font-bold">
+                                    <CreditCard className="w-6 h-6 mb-2" />
+                                    Credit Card
+                                </button>
+                                <button className="p-4 border border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800 text-silver-500 rounded-lg flex flex-col items-center justify-center font-bold opacity-50 cursor-not-allowed">
+                                    <Smartphone className="w-6 h-6 mb-2" />
+                                    Apple Pay
+                                </button>
+                            </div>
+                        </div>
+
+                        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handlePayment(); }}>
+                             <Input label="Card Number" placeholder="0000 0000 0000 0000" />
+                             <div className="grid grid-cols-2 gap-4">
+                                <Input label="Expiry" placeholder="MM/YY" />
+                                <Input label="CVC" placeholder="123" />
+                             </div>
+                             <Button type="submit" className="w-full">Pay Now</Button>
+                        </form>
+                    </div>
+                </Modal>
+            )}
+        </div>
+    );
+
+    const renderLogistics = () => {
+        // Filter repairs that need logistics (Pickup type + not yet delivered back)
+        const dispatchRepairs = allRepairs.filter(r => r.deliveryMethod === 'PICKUP');
+
+        return (
+            <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold">Logistics & Dispatch</h2>
+                </div>
+                <Card className="overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-silver-50 dark:bg-silver-900 border-b border-silver-200 dark:border-silver-800">
+                            <tr>
+                                <th className="p-4 font-medium">Ticket ID</th>
+                                <th className="p-4 font-medium">Customer Address</th>
+                                <th className="p-4 font-medium">Contact</th>
+                                <th className="p-4 font-medium">Status</th>
+                                <th className="p-4 font-medium">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                            {dispatchRepairs.map(repair => (
+                                <tr key={repair.id}>
+                                    <td className="p-4">
+                                        <div className="font-bold">{repair.id}</div>
+                                        <div className="text-xs text-silver-500">{repair.deviceType}</div>
+                                    </td>
+                                    <td className="p-4 max-w-xs truncate" title={repair.pickupAddress}>
+                                        {repair.pickupAddress || 'N/A'}
+                                    </td>
+                                    <td className="p-4">{repair.contactPhone || 'N/A'}</td>
+                                    <td className="p-4"><Badge color={repair.status === 'PENDING' ? 'yellow' : repair.status === 'PICKED_UP' ? 'blue' : 'green'}>{repair.status}</Badge></td>
+                                    <td className="p-4">
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => { setSelectedRepair(repair); setIsCourierModalOpen(true); }}>
+                                                <Truck className="w-4 h-4 mr-2" /> Assign Courier
+                                            </Button>
+                                            {repair.courier && (
+                                                <Button size="sm" variant="secondary" onClick={() => { setSelectedRepair(repair); setIsLabelModalOpen(true); }}>
+                                                    <Printer className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {dispatchRepairs.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="p-8 text-center text-silver-500">No dispatch requests found.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </Card>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex min-h-screen bg-silver-50 dark:bg-silver-950">
+            {/* Mobile Sidebar Toggle could go here */}
+            <div className="hidden md:block">
+                {renderSidebar()}
+            </div>
+            
+            <div className="flex-1 p-4 md:p-8 overflow-y-auto max-h-screen">
+                {activeTab === 'overview' && renderOverview()}
+                {activeTab === 'repairs' && renderRepairs()}
+                {activeTab === 'orders' && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold">Orders</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            {myOrders.map(order => (
+                                <Card key={order.id} className="p-6">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+                                        <div>
+                                            <h3 className="font-bold text-lg">Order #{order.id}</h3>
+                                            <p className="text-sm text-silver-500">{order.date}</p>
+                                        </div>
+                                        <div className="flex items-center gap-4 mt-2 md:mt-0">
+                                            <span className="font-bold text-xl">{formatPrice(order.total)}</span>
+                                            {isAdmin ? (
+                                                <select 
+                                                    value={order.status} 
+                                                    onChange={(e) => onUpdateOrder(order.id, e.target.value as any)}
+                                                    className="bg-silver-100 dark:bg-silver-800 border-none rounded px-3 py-1 text-sm font-medium"
+                                                >
+                                                    <option value="PROCESSING">PROCESSING</option>
+                                                    <option value="SHIPPED">SHIPPED</option>
+                                                    <option value="DELIVERED">DELIVERED</option>
+                                                </select>
+                                            ) : (
+                                                <Badge color={order.status === 'DELIVERED' ? 'green' : 'yellow'}>{order.status}</Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {order.items.map((item, i) => (
+                                            <div key={i} className="flex items-center gap-3 py-2 border-b border-silver-50 dark:border-silver-800 last:border-0">
+                                                <img src={item.image} alt="" className="w-10 h-10 rounded object-cover bg-silver-100" />
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium">{item.productName}</p>
+                                                    <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </Card>
+                            ))}
+                            {myOrders.length === 0 && <p className="text-center text-silver-500 py-8">No orders found.</p>}
+                        </div>
+                    </div>
+                )}
+                {/* Admin Tabs */}
+                {isAdmin && activeTab === 'users' && (
+                    <div className="space-y-6">
+                         <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-bold">User Management</h2>
+                            {/* Simple Add User Modal Trigger could go here */}
+                        </div>
+                        <Card className="overflow-hidden">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-silver-50 dark:bg-silver-900 border-b border-silver-200 dark:border-silver-800">
+                                    <tr>
+                                        <th className="p-4 font-medium">User</th>
+                                        <th className="p-4 font-medium">Role</th>
+                                        <th className="p-4 font-medium">Status</th>
+                                        <th className="p-4 font-medium">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                                    {allUsers.map(u => (
+                                        <tr key={u.id}>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <img src={u.avatar} className="w-8 h-8 rounded-full" />
+                                                    <div>
+                                                        <div className="font-bold">{u.name}</div>
+                                                        <div className="text-xs text-silver-500">{u.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-4"><Badge color="blue">{u.role}</Badge></td>
+                                            <td className="p-4"><StatusIndicator status={u.availabilityStatus || 'OFFLINE'} /></td>
+                                            <td className="p-4">
+                                                <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setIsUserModalOpen(true); }}>Edit</Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </Card>
+                    </div>
+                )}
+                {/* Logistics Tab */}
+                {isAdmin && activeTab === 'logistics' && renderLogistics()}
+
+                {/* Placeholder for other tabs to prevent crash if clicked */}
+                {activeTab === 'products' && isAdmin && (
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-bold">Inventory</h2>
+                             <Button onClick={() => { setSelectedProduct(null); setIsProductModalOpen(true); }}><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {products.map(p => (
+                                <Card key={p.id} className="p-4 flex gap-4">
+                                    <img src={p.image} className="w-20 h-20 object-cover rounded bg-silver-100" />
+                                    <div className="flex-1">
+                                        <h4 className="font-bold line-clamp-1">{p.name}</h4>
+                                        <p className="text-sm text-silver-500">{formatPrice(p.price)}</p>
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" variant="outline" onClick={() => { setSelectedProduct(p); setIsProductModalOpen(true); }}>Edit</Button>
+                                            <Button size="sm" variant="danger" onClick={() => onDeleteProduct(p.id)}><Trash2 className="w-4 h-4" /></Button>
+                                        </div>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                 {activeTab === 'support' && isAdmin && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold">Support Messages</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            {supportSessions.map(session => (
+                                <Card key={session.id} className="p-4">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <img src={session.userAvatar} className="w-8 h-8 rounded-full" />
+                                            <span className="font-bold">{session.userName}</span>
+                                        </div>
+                                        <span className="text-xs text-silver-500">{session.lastMessageTime.toLocaleString()}</span>
+                                    </div>
+                                    <p className="text-sm bg-silver-50 dark:bg-silver-900 p-2 rounded mb-2 line-clamp-2">
+                                        {session.lastMessage}
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            className="flex-1 border rounded px-2 py-1 text-sm bg-transparent"
+                                            placeholder="Reply..."
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    onAdminReply(session.id, (e.target as HTMLInputElement).value);
+                                                    (e.target as HTMLInputElement).value = '';
+                                                }
+                                            }}
+                                        />
+                                        <Button size="sm">Reply</Button>
+                                    </div>
+                                </Card>
+                            ))}
+                            {supportSessions.length === 0 && <p className="text-silver-500">No active support sessions.</p>}
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'content' && isAdmin && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold">Content Management</h2>
+                        <Card className="p-6">
+                            <h3 className="font-bold mb-4">Platform Settings</h3>
+                            <div className="grid grid-cols-1 gap-4">
+                                <Input label="Logo URL" value={platformLogo} onChange={(e) => onUpdatePlatformSettings({ logo: e.target.value })} />
+                            </div>
+                        </Card>
+                         <Card className="p-6">
+                            <h3 className="font-bold mb-4">Hero Section</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Input label="Title Prefix" value={landingPageConfig.hero.titlePrefix} onChange={(e) => onUpdateLandingPage({ ...landingPageConfig, hero: { ...landingPageConfig.hero, titlePrefix: e.target.value } })} />
+                                <Input label="Highlight" value={landingPageConfig.hero.titleHighlight} onChange={(e) => onUpdateLandingPage({ ...landingPageConfig, hero: { ...landingPageConfig.hero, titleHighlight: e.target.value } })} />
+                                <Input label="Subtitle" className="md:col-span-2" value={landingPageConfig.hero.subtitle} onChange={(e) => onUpdateLandingPage({ ...landingPageConfig, hero: { ...landingPageConfig.hero, subtitle: e.target.value } })} />
+                            </div>
+                        </Card>
+                    </div>
+                )}
+                {activeTab === 'messages' && isAdmin && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold">Contact Messages</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            {contactMessages.map(msg => (
+                                <Card key={msg.id} className="p-4">
+                                    <div className="flex justify-between">
+                                        <h4 className="font-bold">{msg.subject}</h4>
+                                        <Button size="sm" variant="ghost" onClick={() => onDeleteContactMessage(msg.id)}><X className="w-4 h-4" /></Button>
+                                    </div>
+                                    <p className="text-xs text-silver-500 mb-2">From: {msg.name} ({msg.email})</p>
+                                    <p className="text-sm">{msg.message}</p>
+                                </Card>
+                            ))}
+                             {contactMessages.length === 0 && <p className="text-silver-500">No messages.</p>}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Courier Assignment Modal */}
+            {isCourierModalOpen && (
+                <Modal title="Assign Courier" onClose={() => setIsCourierModalOpen(false)}>
+                    <div className="space-y-4">
+                        <p className="text-sm text-silver-500">Assign a courier service for Pickup of <strong>{selectedRepair?.id}</strong></p>
+                        <Input 
+                            label="Courier Service" 
+                            placeholder="e.g. FedEx, UPS, Local Bike" 
+                            value={courierForm.courier}
+                            onChange={(e) => setCourierForm({ ...courierForm, courier: e.target.value })}
+                        />
+                        <Input 
+                            label="Tracking Number" 
+                            placeholder="e.g. 1Z9999999999" 
+                            value={courierForm.tracking}
+                            onChange={(e) => setCourierForm({ ...courierForm, tracking: e.target.value })}
+                        />
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button variant="ghost" onClick={() => setIsCourierModalOpen(false)}>Cancel</Button>
+                            <Button onClick={handleAssignCourier} disabled={!courierForm.courier}>Confirm Assignment</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Simulated Label Modal */}
+            {isLabelModalOpen && selectedRepair && (
+                <Modal title="Shipping Label" onClose={() => setIsLabelModalOpen(false)}>
+                    <div className="space-y-6 text-center">
+                        <div className="border-4 border-black p-6 bg-white text-black mx-auto max-w-sm rounded-lg">
+                            <div className="flex justify-between items-start mb-8">
+                                <h2 className="font-bold text-2xl tracking-tighter">BLUCELL</h2>
+                                <div className="text-right">
+                                    <p className="text-xs font-bold">PRIORITY OVERNIGHT</p>
+                                    <p className="text-xs">TRK: {selectedRepair.trackingNumber || 'PENDING'}</p>
+                                </div>
+                            </div>
+                            <div className="text-left mb-8">
+                                <p className="text-xs text-gray-500 uppercase">From:</p>
+                                <p className="font-bold">{selectedRepair.pickupAddress || 'Customer Address'}</p>
+                                <p className="text-sm">{selectedRepair.contactPhone}</p>
+                            </div>
+                            <div className="text-left mb-8 border-t-2 border-black pt-4">
+                                <p className="text-xs text-gray-500 uppercase">To:</p>
+                                <p className="font-bold text-xl">BLUCELL REPAIR CENTER</p>
+                                <p>123 Tech Blvd, San Francisco, CA 94107</p>
+                            </div>
+                            <div className="flex justify-center py-4">
+                                <Barcode className="w-48 h-12" />
+                            </div>
+                            <p className="text-xs font-mono">{selectedRepair.id}</p>
+                        </div>
+                        <Button onClick={() => { alert('Printing...'); setIsLabelModalOpen(false); }}>
+                            <Printer className="w-4 h-4 mr-2" /> Print Label
+                        </Button>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Payment Modal */}
+            {isPaymentModalOpen && selectedRepair && (
+                <Modal title="Pay Repair Invoice" onClose={() => setIsPaymentModalOpen(false)}>
+                    <div className="space-y-6">
+                        <div className="text-center p-6 bg-silver-50 dark:bg-silver-800 rounded-lg">
+                            <p className="text-sm text-silver-500 mb-1">Total Due for Repair #{selectedRepair.id}</p>
+                            <h2 className="text-3xl font-bold text-blucell-600 dark:text-blucell-400">{formatPrice(selectedRepair.estimatedCost || 0)}</h2>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-sm">Payment Method</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button className="p-4 border border-blucell-600 bg-blucell-50 dark:bg-blucell-900/20 text-blucell-700 dark:text-blucell-300 rounded-lg flex flex-col items-center justify-center font-bold">
+                                    <CreditCard className="w-6 h-6 mb-2" />
+                                    Credit Card
+                                </button>
+                                <button className="p-4 border border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800 text-silver-500 rounded-lg flex flex-col items-center justify-center font-bold opacity-50 cursor-not-allowed">
+                                    <Smartphone className="w-6 h-6 mb-2" />
+                                    Apple Pay
+                                </button>
+                            </div>
+                        </div>
+
+                        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handlePayment(); }}>
+                             <Input label="Card Number" placeholder="0000 0000 0000 0000" />
+                             <div className="grid grid-cols-2 gap-4">
+                                <Input label="Expiry" placeholder="MM/YY" />
+                                <Input label="CVC" placeholder="123" />
+                             </div>
+                             <Button type="submit" className="w-full">Pay Now</Button>
+                        </form>
+                    </div>
+                </Modal>
+            )}
+
+            {/* User Modal */}
+            {isUserModalOpen && (
+                <Modal title={selectedUser ? "Edit User" : "Add User"} onClose={() => setIsUserModalOpen(false)}>
+                    <form className="space-y-4" onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target as HTMLFormElement);
+                        const userData: any = {
+                            id: selectedUser?.id || `u-${Date.now()}`,
+                            name: formData.get('name') as string,
+                            email: formData.get('email') as string,
+                            role: formData.get('role') as UserRole,
+                            avatar: selectedUser?.avatar || 'https://ui-avatars.com/api/?background=random',
+                            availabilityStatus: formData.get('availabilityStatus') as AvailabilityStatus,
+                            bio: formData.get('bio') as string,
+                            phone: formData.get('phone') as string,
+                            address: formData.get('address') as string,
+                        };
+                        
+                        if (selectedUser) {
+                            onUpdateUserAdmin(userData);
+                        } else {
+                            onAddUser(userData);
+                        }
+                        setIsUserModalOpen(false);
+                    }}>
+                        <Input name="name" label="Name" defaultValue={selectedUser?.name} required />
+                        <Input name="email" label="Email" defaultValue={selectedUser?.email} required />
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Role</label>
+                            <select name="role" defaultValue={selectedUser?.role || 'CUSTOMER'} className="w-full border rounded p-2 bg-transparent">
+                                <option value="CUSTOMER">Customer</option>
+                                <option value="FIXER">Fixer</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                        </div>
+                         {/* Fixer Specifics */}
+                        <div>
+                             <label className="block text-sm font-medium mb-1">Availability</label>
+                             <select name="availabilityStatus" defaultValue={selectedUser?.availabilityStatus || 'OFFLINE'} className="w-full border rounded p-2 bg-transparent">
+                                <option value="ONLINE">Online</option>
+                                <option value="OFFLINE">Offline</option>
+                                <option value="BUSY">Busy</option>
+                            </select>
+                        </div>
+                        <Input name="phone" label="Phone" defaultValue={selectedUser?.phone} />
+                        <Input name="address" label="Address" defaultValue={selectedUser?.address} />
+                        <div>
+                             <label className="block text-sm font-medium mb-1">Bio</label>
+                             <textarea name="bio" defaultValue={selectedUser?.bio} className="w-full border rounded p-2 bg-transparent h-20"></textarea>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setIsUserModalOpen(false)}>Cancel</Button>
+                            <Button type="submit">Save</Button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+
+            {/* Product Modal */}
+            {isProductModalOpen && (
+                 <Modal title={selectedProduct ? "Edit Product" : "Add Product"} onClose={() => setIsProductModalOpen(false)}>
+                    <form className="space-y-4" onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target as HTMLFormElement);
+                        const productData: any = {
+                            id: selectedProduct?.id || `p-${Date.now()}`,
+                            name: formData.get('name') as string,
+                            price: parseFloat(formData.get('price') as string),
+                            category: formData.get('category') as any,
+                            image: formData.get('image') as string,
+                            description: formData.get('description') as string,
+                            status: formData.get('status') as any,
+                            isBestSeller: formData.get('isBestSeller') === 'on',
+                            rating: selectedProduct?.rating || 0,
+                            reviews: selectedProduct?.reviews || 0,
+                            specs: selectedProduct?.specs || {}
+                        };
+                         if (selectedProduct) {
+                            onUpdateProduct(productData);
+                        } else {
+                            onAddProduct(productData);
+                        }
+                        setIsProductModalOpen(false);
+                    }}>
+                        <Input name="name" label="Product Name" defaultValue={selectedProduct?.name} required />
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input name="price" label="Price" type="number" step="0.01" defaultValue={selectedProduct?.price} required />
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Category</label>
+                                <select name="category" defaultValue={selectedProduct?.category || 'Phone'} className="w-full border rounded p-2 bg-transparent">
                                     {['Phone', 'Laptop', 'Audio', 'Camera', 'Gaming', 'Drone', 'Others'].map(c => (
                                         <option key={c} value={c}>{c}</option>
                                     ))}
                                 </select>
                             </div>
                         </div>
-                        
-                        <div>
-                            <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Product Image</label>
-                            <div className="flex items-center gap-4 mb-2">
-                                <div className="w-20 h-20 bg-silver-100 dark:bg-silver-800 rounded-lg overflow-hidden border border-silver-200 dark:border-silver-700 flex items-center justify-center">
-                                    {currentProduct.image ? (
-                                        <img src={currentProduct.image} alt="Preview" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <ImageIcon className="w-8 h-8 text-silver-400" />
-                                    )}
-                                </div>
-                                <label className="cursor-pointer bg-silver-50 dark:bg-silver-800 hover:bg-silver-100 dark:hover:bg-silver-700 border border-silver-300 dark:border-silver-600 px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
-                                    <Upload className="w-4 h-4" />
-                                    <span>Upload Image</span>
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleProductImageUpload} />
-                                </label>
+                        <Input name="image" label="Image URL" defaultValue={selectedProduct?.image} />
+                         <div>
+                             <label className="block text-sm font-medium mb-1">Description</label>
+                             <textarea name="description" defaultValue={selectedProduct?.description} className="w-full border rounded p-2 bg-transparent h-20"></textarea>
+                        </div>
+                         <div className="flex items-center gap-4">
+                             <div>
+                                <label className="block text-sm font-medium mb-1">Status</label>
+                                <select name="status" defaultValue={selectedProduct?.status || 'IN_STOCK'} className="w-full border rounded p-2 bg-transparent">
+                                    <option value="IN_STOCK">In Stock</option>
+                                    <option value="OUT_OF_STOCK">Out of Stock</option>
+                                </select>
                             </div>
-                            <Input label="Or Image URL" value={currentProduct.image || ''} onChange={e => setCurrentProduct({...currentProduct, image: e.target.value})} placeholder="https://..." />
-                        </div>
-
-                        <div>
-                             <label className="block text-sm font-medium text-silver-700 dark:text-silver-300 mb-1">Description</label>
-                             <textarea 
-                                className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm"
-                                value={currentProduct.description || ''}
-                                onChange={e => setCurrentProduct({...currentProduct, description: e.target.value})}
-                             />
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <input 
-                                type="checkbox" 
-                                id="bestSeller" 
-                                checked={currentProduct.isBestSeller || false} 
-                                onChange={e => setCurrentProduct({...currentProduct, isBestSeller: e.target.checked})} 
-                             />
-                             <label htmlFor="bestSeller" className="text-sm font-medium">Mark as Best Seller</label>
-                        </div>
-                        <div className="flex justify-end pt-4">
-                            <Button type="submit">Save Product</Button>
+                            <label className="flex items-center gap-2 mt-6 cursor-pointer">
+                                <input type="checkbox" name="isBestSeller" defaultChecked={selectedProduct?.isBestSeller} />
+                                <span className="text-sm font-medium">Best Seller</span>
+                            </label>
+                         </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setIsProductModalOpen(false)}>Cancel</Button>
+                            <Button type="submit">Save</Button>
                         </div>
                     </form>
-                </Modal>
+                 </Modal>
             )}
-        </div>
-    );
-
-    const renderOrders = () => (
-        <div className="space-y-6 animate-fade-in">
-             <div className="flex justify-between items-center">
-                <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver-400" />
-                    <Input 
-                        placeholder="Search orders..." 
-                        className="pl-10" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </div>
-            
-            <div className="space-y-4">
-                {myOrders.filter(o => o.id.includes(searchTerm)).map(order => (
-                    <Card key={order.id} className="p-0 overflow-hidden">
-                        <div className="p-4 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-800/50 flex flex-wrap justify-between items-center gap-4">
-                            <div>
-                                <p className="font-bold text-silver-900 dark:text-white">Order #{order.id}</p>
-                                <p className="text-xs text-silver-500">{new Date(order.date).toLocaleDateString()}</p>
-                            </div>
-                            
-                            {order.status === 'SHIPPED' && (
-                                <div className="hidden sm:block text-right">
-                                    <p className="text-xs text-silver-500 uppercase font-bold flex items-center gap-1 justify-end">
-                                        <Truck className="w-3 h-3" /> Tracking
-                                    </p>
-                                    <a href="#" onClick={(e) => { e.preventDefault(); alert(`Tracking TN${order.id.replace(/\D/g, '').padEnd(9, '0')}: Package is in transit.`); }} className="text-sm font-mono text-blucell-600 hover:text-blucell-500 flex items-center gap-1">
-                                        TN{order.id.replace(/\D/g, '').padEnd(9, '0')} <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                </div>
-                            )}
-
-                            <div className="flex items-center gap-4">
-                                <span className="font-bold text-silver-900 dark:text-white">{formatPrice(order.total)}</span>
-                                <Badge color={order.status === 'DELIVERED' ? 'green' : 'blue'}>{order.status}</Badge>
-                                {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                                    <button 
-                                        onClick={() => setViewingOrder(order)} 
-                                        className="p-1 hover:bg-silver-200 dark:hover:bg-silver-700 rounded transition-colors"
-                                    >
-                                        <MoreVertical className="w-4 h-4 text-silver-500" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                        <div className="p-4">
-                            {order.items.map((item, i) => (
-                                <div key={i} className="flex items-center gap-4 mb-2 last:mb-0">
-                                    <div className="w-12 h-12 bg-silver-100 rounded overflow-hidden shrink-0">
-                                        <img src={item.image} alt="" className="w-full h-full object-cover" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="font-medium text-sm">{item.productName}</p>
-                                        <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </Card>
-                ))}
-            </div>
-
-            {viewingOrder && (
-                <Modal title={`Manage Order #${viewingOrder.id}`} onClose={() => setViewingOrder(null)}>
-                    <div className="space-y-4">
-                        <p className="text-sm text-silver-500">Update order status:</p>
-                        <div className="flex flex-col gap-2">
-                            {['PROCESSING', 'SHIPPED', 'DELIVERED'].map((status) => (
-                                <button
-                                    key={status}
-                                    onClick={() => { onUpdateOrder(viewingOrder.id, status as any); setViewingOrder(null); }}
-                                    className={`p-3 rounded-lg text-left text-sm font-medium border ${
-                                        viewingOrder.status === status 
-                                        ? 'border-blucell-500 bg-blucell-50 text-blucell-700' 
-                                        : 'border-silver-200 dark:border-silver-700 hover:bg-silver-50 dark:hover:bg-silver-800'
-                                    }`}
-                                >
-                                    {status}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </Modal>
-            )}
-        </div>
-    );
-
-    const renderRepairs = () => (
-        <div className="space-y-6 animate-fade-in">
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 {/* Left List */}
-                 <div className="lg:col-span-1 space-y-4 h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                     <Input 
-                        placeholder="Search repairs..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="mb-4"
-                     />
-                     {myRepairs.map(repair => (
-                         <div 
-                            key={repair.id} 
-                            onClick={() => openRepairModal(repair)}
-                            className={`p-4 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
-                                viewingRepair?.id === repair.id 
-                                ? 'border-blucell-500 bg-blucell-50 dark:bg-blucell-900/20 shadow-md' 
-                                : 'border-silver-200 dark:border-silver-800 bg-white dark:bg-silver-900 hover:border-blucell-300'
-                            }`}
-                         >
-                             <div className="flex justify-between items-start mb-2">
-                                 <span className="font-bold text-sm">{repair.deviceType}</span>
-                                 <Badge color={
-                                     repair.status === 'COMPLETED' ? 'green' : 
-                                     repair.status === 'DIAGNOSING' ? 'yellow' : 'blue'
-                                 }>{repair.status}</Badge>
-                             </div>
-                             <p className="text-xs text-silver-500 line-clamp-2 mb-2">{repair.issueDescription}</p>
-                             <div className="flex justify-between items-center text-xs text-silver-400">
-                                 <span>{new Date(repair.dateBooked).toLocaleDateString()}</span>
-                                 {repair.fixerId ? (
-                                     <div className="flex items-center gap-1">
-                                         <UserIcon className="w-3 h-3" />
-                                         <span>{repair.fixerId === user.id ? 'You' : 'Assigned'}</span>
-                                     </div>
-                                 ) : (
-                                     <span className="text-orange-500 font-bold flex items-center gap-1">
-                                         <AlertCircle className="w-3 h-3" /> Unassigned
-                                     </span>
-                                 )}
-                             </div>
-                         </div>
-                     ))}
-                 </div>
-
-                 {/* Right Detail */}
-                 <div className="lg:col-span-2">
-                     {viewingRepair ? (
-                         <Card className="h-full p-6 flex flex-col">
-                             <div className="flex justify-between items-start mb-6 pb-6 border-b border-silver-100 dark:border-silver-800">
-                                 <div>
-                                     <h3 className="text-xl font-bold mb-1">{viewingRepair.deviceType}</h3>
-                                     <p className="text-sm text-silver-500">ID: {viewingRepair.id}</p>
-                                 </div>
-                                 <div className="text-right">
-                                     <Badge color="blue">{viewingRepair.status}</Badge>
-                                     {viewingRepair.estimatedCost && (
-                                         <p className="font-bold text-lg mt-2">{formatPrice(viewingRepair.estimatedCost)}</p>
-                                     )}
-                                 </div>
-                             </div>
-
-                             <div className="space-y-6 flex-1 overflow-y-auto">
-                                 {viewingRepair.deliveryMethod && (
-                                     <div className="flex items-center gap-2 text-sm text-silver-600 dark:text-silver-300 bg-silver-50 dark:bg-silver-800/50 p-2 rounded-lg w-fit">
-                                         {viewingRepair.deliveryMethod === 'PICKUP' ? (
-                                             <>
-                                                <Truck className="w-4 h-4 text-blucell-600" />
-                                                <span className="font-medium">Method: Dispatch Pickup</span>
-                                             </>
-                                         ) : (
-                                             <>
-                                                <MapPin className="w-4 h-4 text-blucell-600" />
-                                                <span className="font-medium">Method: Self Drop-off</span>
-                                             </>
-                                         )}
-                                     </div>
-                                 )}
-
-                                 {/* Display Pickup Details if available */}
-                                 {viewingRepair.deliveryMethod === 'PICKUP' && viewingRepair.pickupAddress && (
-                                     <div className="bg-blucell-50 dark:bg-blucell-900/10 border border-blucell-200 dark:border-blucell-900 p-4 rounded-lg">
-                                         <h4 className="font-bold text-sm text-blucell-800 dark:text-blucell-200 mb-2 flex items-center gap-2">
-                                             <Truck className="w-4 h-4" /> Dispatch Information
-                                         </h4>
-                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                             <div>
-                                                 <p className="text-xs text-silver-500 uppercase tracking-wider mb-1">Pickup Address</p>
-                                                 <p className="font-medium text-silver-900 dark:text-white flex items-center gap-2">
-                                                     <MapPin className="w-3 h-3 text-silver-400" /> {viewingRepair.pickupAddress}
-                                                 </p>
-                                             </div>
-                                             <div>
-                                                 <p className="text-xs text-silver-500 uppercase tracking-wider mb-1">Contact Phone</p>
-                                                 <p className="font-medium text-silver-900 dark:text-white flex items-center gap-2">
-                                                     <Phone className="w-3 h-3 text-silver-400" /> {viewingRepair.contactPhone}
-                                                 </p>
-                                             </div>
-                                         </div>
-                                     </div>
-                                 )}
-
-                                 <div>
-                                     <h4 className="font-semibold text-sm text-silver-500 mb-2 uppercase">Issue Description</h4>
-                                     <p className="text-silver-800 dark:text-silver-200 bg-silver-50 dark:bg-silver-800 p-4 rounded-lg">
-                                         {viewingRepair.issueDescription}
-                                     </p>
-                                 </div>
-
-                                 {viewingRepair.aiDiagnosis && (
-                                     <div>
-                                         <h4 className="font-semibold text-sm text-blucell-600 mb-2 uppercase flex items-center gap-2">
-                                             <Cpu className="w-4 h-4" /> AI Diagnosis
-                                         </h4>
-                                         <div className="bg-blucell-50 dark:bg-blucell-900/20 border border-blucell-100 dark:border-blucell-900 p-4 rounded-lg text-sm text-silver-800 dark:text-silver-200">
-                                             {viewingRepair.aiDiagnosis}
-                                         </div>
-                                     </div>
-                                 )}
-
-                                 {/* --- Repair Chat Section --- */}
-                                 {(viewingRepair.customerId === user.id || viewingRepair.fixerId === user.id || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                                     <div className="pt-6 border-t border-silver-100 dark:border-silver-800">
-                                         <h4 className="font-bold mb-4 flex items-center gap-2">
-                                             <MessageSquare className="w-4 h-4 text-blucell-600" />
-                                             Repair Communication
-                                         </h4>
-                                         <div className="bg-silver-50 dark:bg-silver-900/50 border border-silver-200 dark:border-silver-800 rounded-xl overflow-hidden flex flex-col h-64 mb-6">
-                                             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                                                 {repairChats[viewingRepair.id]?.length > 0 ? (
-                                                     repairChats[viewingRepair.id].map((msg) => (
-                                                         <div key={msg.id} className={`flex ${msg.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
-                                                             <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                                                                 msg.senderId === user.id 
-                                                                 ? 'bg-blucell-600 text-white rounded-br-none' 
-                                                                 : 'bg-white dark:bg-silver-800 border border-silver-200 dark:border-silver-700 rounded-bl-none'
-                                                             }`}>
-                                                                 <p>{msg.text}</p>
-                                                                 <p className={`text-[10px] mt-1 text-right ${msg.senderId === user.id ? 'text-blucell-100' : 'text-silver-400'}`}>
-                                                                     {msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                                                 </p>
-                                                             </div>
-                                                         </div>
-                                                     ))
-                                                 ) : (
-                                                     <div className="h-full flex items-center justify-center text-silver-400 text-sm">
-                                                         <p>No messages yet. Start the conversation!</p>
-                                                     </div>
-                                                 )}
-                                                 <div ref={repairChatEndRef} />
-                                             </div>
-                                             <div className="p-2 border-t border-silver-200 dark:border-silver-800 bg-white dark:bg-silver-900 flex gap-2">
-                                                 <input 
-                                                     className="flex-1 bg-silver-100 dark:bg-silver-800 border-0 rounded-full px-4 text-sm focus:ring-1 focus:ring-blucell-500 outline-none"
-                                                     placeholder="Type a message to the technician..."
-                                                     value={repairChatInput}
-                                                     onChange={(e) => setRepairChatInput(e.target.value)}
-                                                     onKeyDown={(e) => e.key === 'Enter' && handleSendRepairChat()}
-                                                 />
-                                                 <button 
-                                                     onClick={handleSendRepairChat}
-                                                     className="p-2 bg-blucell-600 text-white rounded-full hover:bg-blucell-700 transition-colors"
-                                                 >
-                                                     <Send className="w-4 h-4" />
-                                                 </button>
-                                             </div>
-                                         </div>
-                                     </div>
-                                 )}
-
-                                 {(user.role === 'ADMIN' || user.role === 'FIXER' || user.role === 'SUPER_ADMIN') && (
-                                     <div className="pt-6 border-t border-silver-100 dark:border-silver-800">
-                                         <h4 className="font-bold mb-4">Technician Controls</h4>
-                                         
-                                         {!viewingRepair.fixerId && (
-                                             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-900/50 p-4 rounded-lg mb-6">
-                                                 <p className="text-sm text-orange-800 dark:text-orange-200 mb-3 font-medium">This job is currently unassigned.</p>
-                                                 <Button className="w-full" onClick={() => handleClaimRepair(viewingRepair)}>
-                                                     Claim This Job
-                                                 </Button>
-                                             </div>
-                                         )}
-
-                                         {(viewingRepair.fixerId === user.id || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                                             <form onSubmit={handleSaveRepair} className="space-y-4">
-                                                 <div className="grid grid-cols-2 gap-4">
-                                                     <div>
-                                                         <label className="block text-sm font-medium mb-1">Status</label>
-                                                         <select 
-                                                            className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm"
-                                                            value={repairForm.status}
-                                                            onChange={(e) => setRepairForm({...repairForm, status: e.target.value as any})}
-                                                         >
-                                                             <option value="PENDING">Pending</option>
-                                                             <option value="DIAGNOSING">Diagnosing</option>
-                                                             <option value="IN_PROGRESS">In Progress</option>
-                                                             <option value="COMPLETED">Completed</option>
-                                                             <option value="DELIVERED">Delivered</option>
-                                                         </select>
-                                                     </div>
-                                                     <Input 
-                                                        label="Est. Cost" 
-                                                        type="number" 
-                                                        value={repairForm.cost} 
-                                                        onChange={(e) => setRepairForm({...repairForm, cost: e.target.value})} 
-                                                     />
-                                                 </div>
-                                                 <div>
-                                                     <label className="block text-sm font-medium mb-1">Tech Notes</label>
-                                                     <textarea 
-                                                        className="w-full rounded-lg border border-silver-300 dark:border-silver-700 bg-white dark:bg-silver-950 px-3 py-2 text-sm h-24"
-                                                        value={repairForm.notes}
-                                                        onChange={(e) => setRepairForm({...repairForm, notes: e.target.value})}
-                                                     />
-                                                 </div>
-                                                 <div className="flex justify-end gap-3">
-                                                     <Button type="submit">Update Ticket</Button>
-                                                 </div>
-                                             </form>
-                                         )}
-                                     </div>
-                                 )}
-                             </div>
-                         </Card>
-                     ) : (
-                         <div className="h-full flex flex-col items-center justify-center text-silver-400 border-2 border-dashed border-silver-200 dark:border-silver-800 rounded-xl bg-silver-50 dark:bg-silver-900/50">
-                             <Wrench className="w-12 h-12 mb-4 opacity-50" />
-                             <p>Select a repair ticket to view details</p>
-                         </div>
-                     )}
-                 </div>
-             </div>
-        </div>
-    );
-
-    const renderCMS = () => (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex gap-2 overflow-x-auto pb-2 border-b border-silver-200 dark:border-silver-800">
-                {['hero', 'features', 'trending', 'cta', 'contact', 'messages', 'settings', 'team'].map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveCmsTab(tab as any)}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
-                            activeCmsTab === tab 
-                            ? 'bg-blucell-100 text-blucell-700 dark:bg-blucell-900/30 dark:text-blucell-400' 
-                            : 'text-silver-600 hover:text-blucell-600 dark:text-silver-400'
-                        }`}
-                    >
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </button>
-                ))}
-            </div>
-
-            <Card className="p-6">
-                {activeCmsTab === 'hero' && (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input label="Title Prefix" value={cmsConfig.hero.titlePrefix} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titlePrefix: e.target.value}})} />
-                            <Input label="Title Highlight" value={cmsConfig.hero.titleHighlight} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleHighlight: e.target.value}})} />
-                        </div>
-                        <Input label="Title Suffix" value={cmsConfig.hero.titleSuffix} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, titleSuffix: e.target.value}})} />
-                        <Input label="Subtitle" value={cmsConfig.hero.subtitle} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, subtitle: e.target.value}})} />
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input label="Primary CTA" value={cmsConfig.hero.ctaPrimary} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaPrimary: e.target.value}})} />
-                            <Input label="Secondary CTA" value={cmsConfig.hero.ctaSecondary} onChange={e => setCmsConfig({...cmsConfig, hero: {...cmsConfig.hero, ctaSecondary: e.target.value}})} />
-                        </div>
-                        
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Hero Slideshow Images</label>
-                            <div className="grid grid-cols-3 gap-4 mb-4">
-                                {(cmsConfig.hero.images || []).map((img, i) => (
-                                    <div key={i} className="relative group rounded-lg overflow-hidden h-24 border border-silver-200 dark:border-silver-800">
-                                        <img src={img} className="w-full h-full object-cover" alt="" />
-                                        <button 
-                                            onClick={() => removeHeroImage(i)}
-                                            className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
-                                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-silver-300 dark:border-silver-700 rounded-lg cursor-pointer hover:bg-silver-50 dark:hover:bg-silver-800">
-                                    <Plus className="w-5 h-5 text-silver-400" />
-                                    <span className="text-xs text-silver-500">Add Image</span>
-                                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleHeroImageUpload} />
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeCmsTab === 'settings' && (
-                    <div className="space-y-6">
-                        <SectionTitle title="Platform Branding" subtitle="Upload your custom logo" />
-                        <div className="flex items-center gap-6">
-                            <div className="w-24 h-24 bg-silver-100 dark:bg-silver-800 rounded-xl flex items-center justify-center border border-silver-200 dark:border-silver-700 overflow-hidden">
-                                {platformLogo ? (
-                                    <img src={platformLogo} alt="Logo" className="w-full h-full object-contain p-2" />
-                                ) : (
-                                    <span className="text-xs text-silver-400">No Logo</span>
-                                )}
-                            </div>
-                            <div>
-                                <label className="cursor-pointer bg-blucell-600 hover:bg-blucell-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
-                                    <Upload className="w-4 h-4" />
-                                    <span>Upload Logo</span>
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                                </label>
-                                <p className="text-xs text-silver-500 mt-2">Recommended: PNG with transparent background.</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeCmsTab === 'contact' && (
-                    <div className="space-y-4">
-                        <Input label="Phone" value={contactInfo.phone} onChange={e => onUpdateContactInfo({...contactInfo, phone: e.target.value})} />
-                        <Input label="Email" value={contactInfo.email} onChange={e => onUpdateContactInfo({...contactInfo, email: e.target.value})} />
-                        <Input label="Address" value={contactInfo.address} onChange={e => onUpdateContactInfo({...contactInfo, address: e.target.value})} />
-                    </div>
-                )}
-
-                {activeCmsTab === 'messages' && (
-                    <div className="space-y-4">
-                        {contactMessages.length === 0 ? (
-                            <p className="text-silver-500">No messages yet.</p>
-                        ) : (
-                            contactMessages.map(msg => (
-                                <div key={msg.id} className="p-4 border border-silver-200 dark:border-silver-800 rounded-lg hover:bg-silver-50 dark:hover:bg-silver-800/50">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h4 className="font-bold">{msg.subject}</h4>
-                                        <span className="text-xs text-silver-500">{new Date(msg.date).toLocaleDateString()}</span>
-                                    </div>
-                                    <p className="text-sm text-silver-600 dark:text-silver-300 mb-2">{msg.message}</p>
-                                    <div className="flex justify-between items-center mt-2">
-                                        <span className="text-xs text-silver-400">From: {msg.name} ({msg.email})</span>
-                                        <button onClick={() => onDeleteContactMessage(msg.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                )}
-
-                {activeCmsTab === 'team' && (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg">Team Members</h3>
-                            <Button size="sm" onClick={() => setIsTeamModalOpen(true)}>
-                                <Plus className="w-4 h-4 mr-2" /> Add Member
-                            </Button>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {team.map(member => (
-                                <div key={member.id} className="flex items-center gap-4 p-4 border border-silver-200 dark:border-silver-800 rounded-xl relative group">
-                                    <img src={member.image} alt={member.name} className="w-12 h-12 rounded-full object-cover" />
-                                    <div>
-                                        <p className="font-bold text-sm">{member.name}</p>
-                                        <p className="text-xs text-silver-500">{member.role}</p>
-                                    </div>
-                                    <button 
-                                        onClick={() => handleDeleteTeamMember(member.id)}
-                                        className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        {isTeamModalOpen && (
-                            <Modal title="Add Team Member" onClose={() => setIsTeamModalOpen(false)}>
-                                <form onSubmit={handleTeamMemberSubmit} className="space-y-4">
-                                    <Input label="Name" value={currentTeamMember.name || ''} onChange={e => setCurrentTeamMember({...currentTeamMember, name: e.target.value})} required />
-                                    <Input label="Role" value={currentTeamMember.role || ''} onChange={e => setCurrentTeamMember({...currentTeamMember, role: e.target.value})} required />
-                                    
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Photo</label>
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-16 h-16 rounded-full overflow-hidden bg-silver-100 dark:bg-silver-800 border">
-                                                {currentTeamMember.image ? (
-                                                    <img src={currentTeamMember.image} className="w-full h-full object-cover" alt="" />
-                                                ) : <UserIcon className="w-8 h-8 m-auto text-silver-400" />}
-                                            </div>
-                                            <label className="cursor-pointer bg-silver-100 hover:bg-silver-200 dark:bg-silver-800 dark:hover:bg-silver-700 px-3 py-2 rounded text-xs transition-colors">
-                                                Upload
-                                                <input type="file" className="hidden" accept="image/*" onChange={handleTeamMemberImageUpload} />
-                                            </label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex justify-end pt-4">
-                                        <Button type="submit">Add Member</Button>
-                                    </div>
-                                </form>
-                            </Modal>
-                        )}
-                    </div>
-                )}
-
-                {/* Placeholder for other CMS tabs */}
-                {(activeCmsTab === 'features' || activeCmsTab === 'trending' || activeCmsTab === 'cta') && (
-                    <div className="text-center py-12 text-silver-500">
-                        <p>Editor for {activeCmsTab} section is coming soon.</p>
-                        <p className="text-xs mt-2">Edit 'constants.ts' directly for now.</p>
-                    </div>
-                )}
-
-                {activeCmsTab !== 'messages' && activeCmsTab !== 'settings' && activeCmsTab !== 'team' && (
-                    <div className="mt-6 flex justify-end">
-                        <Button onClick={handleSaveCMS} className="flex items-center gap-2">
-                            <Save className="w-4 h-4" /> Save Configuration
-                        </Button>
-                    </div>
-                )}
-            </Card>
-        </div>
-    );
-
-    const renderSupport = () => (
-        <div className="h-[calc(100vh-200px)] flex gap-6 animate-fade-in">
-            {/* Session List */}
-            <Card className="w-1/3 flex flex-col overflow-hidden">
-                <div className="p-4 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-800/50">
-                    <h3 className="font-bold">Active Sessions</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                    {supportSessions.length === 0 && <p className="p-4 text-sm text-silver-500 text-center">No active chats.</p>}
-                    {supportSessions.map(session => (
-                        <div 
-                            key={session.id}
-                            onClick={() => setActiveSessionId(session.id)}
-                            className={`p-4 border-b border-silver-100 dark:border-silver-800 cursor-pointer transition-colors hover:bg-silver-50 dark:hover:bg-silver-800 ${activeSessionId === session.id ? 'bg-blucell-50 dark:bg-blucell-900/10' : ''}`}
-                        >
-                            <div className="flex justify-between items-start mb-1">
-                                <span className="font-bold text-sm">{session.userName}</span>
-                                <span className="text-[10px] text-silver-400">{new Date(session.lastMessageTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                            </div>
-                            <p className="text-xs text-silver-500 line-clamp-1">{session.lastMessage}</p>
-                            {session.unreadCount > 0 && <Badge color="red" className="mt-2">{session.unreadCount} new</Badge>}
-                        </div>
-                    ))}
-                </div>
-            </Card>
-
-            {/* Chat Area */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
-                {activeSessionId ? (
-                    <>
-                        <div className="p-4 border-b border-silver-100 dark:border-silver-800 bg-silver-50 dark:bg-silver-800/50 flex justify-between items-center">
-                            <h3 className="font-bold">
-                                Chat with {supportSessions.find(s => s.id === activeSessionId)?.userName}
-                            </h3>
-                            <Button size="sm" variant="outline" onClick={() => setActiveSessionId(null)}>Close</Button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-silver-50 dark:bg-silver-900/50">
-                            {supportSessions.find(s => s.id === activeSessionId)?.messages.map(msg => (
-                                <div key={msg.id} className={`flex ${msg.senderId === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
-                                        msg.senderId === 'admin'
-                                        ? 'bg-blucell-600 text-white rounded-br-none'
-                                        : 'bg-white dark:bg-silver-800 border border-silver-200 dark:border-silver-700 rounded-bl-none'
-                                    }`}>
-                                        <p>{msg.text}</p>
-                                        <span className={`text-[10px] block mt-1 text-right opacity-70`}>
-                                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                            <div ref={chatEndRef} />
-                        </div>
-                        <div className="p-4 border-t border-silver-200 dark:border-silver-800 bg-white dark:bg-silver-900 flex gap-2">
-                            <input 
-                                className="flex-1 bg-silver-100 dark:bg-silver-800 border-0 rounded-full px-4 text-sm focus:ring-1 focus:ring-blucell-500 outline-none"
-                                placeholder="Type a reply..."
-                                value={chatReply}
-                                onChange={(e) => setChatReply(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                            />
-                            <button onClick={handleSendChat} className="p-2 bg-blucell-600 text-white rounded-full hover:bg-blucell-700">
-                                <Send className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center text-silver-400">
-                        <p>Select a conversation to start chatting</p>
-                    </div>
-                )}
-            </Card>
-        </div>
-    );
-
-    const renderSystem = () => {
-        const dispatchJobs = allRepairs.filter(r => r.deliveryMethod === 'PICKUP' && r.status !== 'COMPLETED' && r.status !== 'DELIVERED');
-
-        return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Dispatch Logistics Section for Super Admin */}
-            <Card className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Truck className="w-5 h-5 text-blucell-600" /> Dispatch Logistics Queue
-                    </h3>
-                    <Badge color="blue">{dispatchJobs.length} Active Pickups</Badge>
-                </div>
-                
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-silver-50 dark:bg-silver-800 text-silver-500 font-medium border-b border-silver-100 dark:border-silver-800">
-                            <tr>
-                                <th className="px-4 py-3">Ticket ID</th>
-                                <th className="px-4 py-3">Device</th>
-                                <th className="px-4 py-3">Customer Contact</th>
-                                <th className="px-4 py-3">Pickup Address</th>
-                                <th className="px-4 py-3">Date Booked</th>
-                                <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
-                            {dispatchJobs.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-4 py-8 text-center text-silver-500 italic">
-                                        No active dispatch requests pending.
-                                    </td>
-                                </tr>
-                            ) : (
-                                dispatchJobs.map(job => (
-                                    <tr key={job.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50 transition-colors">
-                                        <td className="px-4 py-3 font-mono text-xs text-silver-500">{job.id.split('-')[1] || job.id}</td>
-                                        <td className="px-4 py-3 font-medium">{job.deviceType}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-col">
-                                                <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-silver-400" /> {job.contactPhone || 'N/A'}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 max-w-xs truncate" title={job.pickupAddress}>
-                                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-silver-400" /> {job.pickupAddress || 'N/A'}</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-silver-500">{new Date(job.dateBooked).toLocaleDateString()}</td>
-                                        <td className="px-4 py-3"><Badge color={job.status === 'PENDING' ? 'yellow' : 'blue'}>{job.status}</Badge></td>
-                                        <td className="px-4 py-3 text-right">
-                                            <Button 
-                                                size="sm" 
-                                                variant="outline" 
-                                                onClick={() => { setViewingRepair(job); setActiveTab('repairs'); }}
-                                                className="text-xs h-8"
-                                            >
-                                                Manage Ticket
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="p-6">
-                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                        <Database className="w-5 h-5 text-blucell-600" /> Data Management
-                    </h3>
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-3 border border-silver-200 dark:border-silver-800 rounded-lg">
-                            <div>
-                                <p className="font-medium text-sm">Seed Product Catalog</p>
-                                <p className="text-xs text-silver-500">Reset store to default demo products.</p>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={handleResetDemoData} isLoading={isResetting}>
-                                <RefreshCw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> Reset
-                            </Button>
-                        </div>
-                        <div className="flex items-center justify-between p-3 border border-silver-200 dark:border-silver-800 rounded-lg">
-                            <div>
-                                <p className="font-medium text-sm">Clear Local Cache</p>
-                                <p className="text-xs text-silver-500">Fix UI issues by clearing local storage.</p>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={handleClearCache}>
-                                <Trash2 className="w-4 h-4 mr-2" /> Clear
-                            </Button>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="p-6">
-                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                        <Terminal className="w-5 h-5 text-blucell-600" /> System Logs
-                    </h3>
-                    <div className="bg-black/90 text-green-400 p-4 rounded-lg font-mono text-xs h-64 overflow-y-auto">
-                        {systemLogs.map((log, i) => (
-                            <div key={i} className="mb-1">
-                                <span className="text-silver-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{' '}
-                                <span className={log.level === 'ERROR' ? 'text-red-500' : log.level === 'WARN' ? 'text-yellow-500' : 'text-green-400'}>{log.level}:</span>{' '}
-                                {log.message}
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-            </div>
-        </div>
-        );
-    };
-
-    return (
-        <div className="max-w-7xl mx-auto p-4 md:p-8 flex flex-col md:flex-row gap-8">
-            {/* Sidebar Navigation */}
-            <aside className="w-full md:w-64 flex-shrink-0">
-                {renderSidebar()}
-            </aside>
-
-            {/* Main Content Area */}
-            <main className="flex-1 min-w-0">
-                <div className="mb-8 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold text-silver-900 dark:text-white capitalize">
-                            {activeTab}
-                        </h1>
-                        <p className="text-silver-500">
-                            Welcome back, {user.name.split(' ')[0]}
-                        </p>
-                    </div>
-                    {user.role === 'ADMIN' && (
-                        <Badge color="red" className="hidden md:inline-flex">Admin Mode</Badge>
-                    )}
-                </div>
-
-                {activeTab === 'overview' && renderOverview()}
-                {activeTab === 'users' && renderUsers()}
-                {activeTab === 'products' && renderProducts()}
-                {activeTab === 'orders' && renderOrders()}
-                {activeTab === 'repairs' && renderRepairs()}
-                {activeTab === 'cms' && renderCMS()}
-                {activeTab === 'support' && renderSupport()}
-                {activeTab === 'system' && renderSystem()}
-            </main>
         </div>
     );
 };

@@ -37,7 +37,7 @@ export interface RepairJob {
   deviceId: string;
   deviceType: string;
   issueDescription: string;
-  status: 'PENDING' | 'DIAGNOSING' | 'IN_PROGRESS' | 'COMPLETED' | 'DELIVERED';
+  status: 'PENDING' | 'PICKED_UP' | 'RECEIVED' | 'DIAGNOSING' | 'IN_PROGRESS' | 'COMPLETED' | 'DELIVERED';
   customerId: string;
   fixerId?: string;
   dateBooked: string;
@@ -46,6 +46,10 @@ export interface RepairJob {
   deliveryMethod?: 'PICKUP' | 'DROP_OFF';
   pickupAddress?: string;
   contactPhone?: string;
+  courier?: string;
+  trackingNumber?: string;
+  timeline?: { status: string; date: string; note?: string }[];
+  isPaid?: boolean;
 }
 
 export interface Order {

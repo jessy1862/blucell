@@ -41,14 +41,14 @@ const sql = async (text: string, params: any[] = []) => {
 
             // If it's not a connection error (e.g., syntax error), throw immediately
             if (!isConnectionError) {
-                console.error("Neon SQL Error (Non-retryable):", error);
+                console.error("Neon SQL Error (Non-retryable):", JSON.stringify(error, Object.getOwnPropertyNames(error)));
                 throw error;
             }
         }
     }
 
     // If we exhausted retries
-    console.error("Neon SQL Error (Final):", lastError);
+    console.error("Neon SQL Error (Final):", JSON.stringify(lastError, Object.getOwnPropertyNames(lastError)));
     throw lastError;
 };
 
@@ -88,6 +88,10 @@ export interface NeonRepairJob {
     delivery_method?: string;
     pickup_address?: string;
     contact_phone?: string;
+    courier?: string;
+    tracking_number?: string;
+    timeline?: string; // JSON string
+    is_paid?: boolean;
 }
 
 export interface NeonOrder {
@@ -157,8 +161,8 @@ export const saveContactMessageToNeon = async (data: NeonContactMessage) => {
 
     console.log("Saved to Neon DB with ID:", result.rows[0].id);
     return result.rows[0];
-  } catch (err) {
-    console.error("Error saving contact message:", err);
+  } catch (err: any) {
+    console.error("Error saving contact message:", err.message || err);
     throw err;
   }
 };
@@ -178,8 +182,8 @@ export const getContactMessagesFromNeon = async () => {
 
         const result = await sql('SELECT * FROM contact_messages ORDER BY created_at DESC');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching contact messages:", err);
+    } catch (err: any) {
+        console.error("Error fetching contact messages:", err.message || err);
         return [];
     }
 };
@@ -234,8 +238,8 @@ export const saveUserToNeon = async (user: NeonUser) => {
         user.address || null
     ]);
     console.log("User saved to Neon DB:", user.id);
-  } catch (err) {
-    console.error("Error saving user:", err);
+  } catch (err: any) {
+    console.error("Error saving user:", err.message || err);
   }
 };
 
@@ -244,8 +248,8 @@ export const getUsersFromNeon = async () => {
         await ensureUsersTable();
         const result = await sql('SELECT * FROM users ORDER BY created_at DESC');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching users:", err);
+    } catch (err: any) {
+        console.error("Error fetching users:", err.message || err);
         return [];
     }
 };
@@ -255,8 +259,8 @@ export const getFixersFromNeon = async () => {
         await ensureUsersTable();
         const result = await sql("SELECT * FROM users WHERE role = 'FIXER'");
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching fixers:", err);
+    } catch (err: any) {
+        console.error("Error fetching fixers:", err.message || err);
         return [];
     }
 };
@@ -296,14 +300,18 @@ const ensureRepairsTable = async () => {
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS delivery_method TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS pickup_address TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS contact_phone TEXT;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS courier TEXT;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS tracking_number TEXT;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS timeline TEXT;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;`); } catch (e) {}
 }
 
 export const saveRepairToNeon = async (repair: NeonRepairJob) => {
     try {
         await ensureRepairsTable();
         await sql(`
-            INSERT INTO repairs (id, device_id, device_type, issue_description, status, customer_id, fixer_id, date_booked, estimated_cost, ai_diagnosis, delivery_method, pickup_address, contact_phone)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            INSERT INTO repairs (id, device_id, device_type, issue_description, status, customer_id, fixer_id, date_booked, estimated_cost, ai_diagnosis, delivery_method, pickup_address, contact_phone, courier, tracking_number, timeline, is_paid)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             ON CONFLICT (id) DO UPDATE SET
                 status = EXCLUDED.status,
                 fixer_id = EXCLUDED.fixer_id,
@@ -311,7 +319,11 @@ export const saveRepairToNeon = async (repair: NeonRepairJob) => {
                 ai_diagnosis = EXCLUDED.ai_diagnosis,
                 delivery_method = EXCLUDED.delivery_method,
                 pickup_address = EXCLUDED.pickup_address,
-                contact_phone = EXCLUDED.contact_phone;
+                contact_phone = EXCLUDED.contact_phone,
+                courier = EXCLUDED.courier,
+                tracking_number = EXCLUDED.tracking_number,
+                timeline = EXCLUDED.timeline,
+                is_paid = EXCLUDED.is_paid;
         `, [
             repair.id,
             repair.device_id,
@@ -325,11 +337,15 @@ export const saveRepairToNeon = async (repair: NeonRepairJob) => {
             repair.ai_diagnosis || null,
             repair.delivery_method || 'PICKUP',
             repair.pickup_address || null,
-            repair.contact_phone || null
+            repair.contact_phone || null,
+            repair.courier || null,
+            repair.tracking_number || null,
+            repair.timeline || '[]',
+            repair.is_paid || false
         ]);
         console.log("Repair saved to Neon:", repair.id);
-    } catch (err) {
-        console.error("Error saving repair:", err);
+    } catch (err: any) {
+        console.error("Error saving repair:", err.message || err);
     }
 };
 
@@ -338,8 +354,8 @@ export const getRepairsFromNeon = async () => {
         await ensureRepairsTable();
         const result = await sql('SELECT * FROM repairs ORDER BY created_at DESC');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching repairs:", err);
+    } catch (err: any) {
+        console.error("Error fetching repairs:", err.message || err);
         return [];
     }
 };
@@ -375,8 +391,8 @@ export const saveOrderToNeon = async (order: NeonOrder) => {
             order.items
         ]);
         console.log("Order saved to Neon:", order.id);
-    } catch (err) {
-        console.error("Error saving order:", err);
+    } catch (err: any) {
+        console.error("Error saving order:", err.message || err);
     }
 };
 
@@ -385,8 +401,8 @@ export const getOrdersFromNeon = async () => {
         await ensureOrdersTable();
         const result = await sql('SELECT * FROM orders ORDER BY created_at DESC');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching orders:", err);
+    } catch (err: any) {
+        console.error("Error fetching orders:", err.message || err);
         return [];
     }
 };
@@ -443,8 +459,8 @@ export const saveProductToNeon = async (product: NeonProduct) => {
             product.is_best_seller || false
         ]);
         console.log("Product saved to Neon:", product.id);
-    } catch (err) {
-        console.error("Error saving product:", err);
+    } catch (err: any) {
+        console.error("Error saving product:", err.message || err);
     }
 };
 
@@ -452,8 +468,8 @@ export const deleteProductFromNeon = async (id: string) => {
     try {
         await sql('DELETE FROM products WHERE id = $1', [id]);
         console.log("Product deleted from Neon:", id);
-    } catch (err) {
-         console.error("Error deleting product:", err);
+    } catch (err: any) {
+         console.error("Error deleting product:", err.message || err);
     }
 }
 
@@ -462,8 +478,8 @@ export const getProductsFromNeon = async () => {
         await ensureProductsTable();
         const result = await sql('SELECT * FROM products ORDER BY created_at DESC');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching products:", err);
+    } catch (err: any) {
+        console.error("Error fetching products:", err.message || err);
         return [];
     }
 };
@@ -510,8 +526,8 @@ export const saveChatSessionToNeon = async (session: NeonChatSession) => {
             session.last_message_time,
             session.status
         ]);
-    } catch (err) {
-        console.error("Error saving chat session:", err);
+    } catch (err: any) {
+        console.error("Error saving chat session:", err.message || err);
     }
 };
 
@@ -520,8 +536,8 @@ export const getChatSessionsFromNeon = async () => {
         await ensureChatSessionsTable();
         const result = await sql('SELECT * FROM chat_sessions ORDER BY last_message_time DESC');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching chat sessions:", err);
+    } catch (err: any) {
+        console.error("Error fetching chat sessions:", err.message || err);
         return [];
     }
 };
@@ -553,8 +569,8 @@ export const saveRepairChatToNeon = async (chat: NeonRepairChat) => {
             chat.messages,
             chat.last_message_at
         ]);
-    } catch (err) {
-        console.error("Error saving repair chat:", err);
+    } catch (err: any) {
+        console.error("Error saving repair chat:", err.message || err);
     }
 };
 
@@ -563,8 +579,8 @@ export const getRepairChatsFromNeon = async () => {
         await ensureRepairChatsTable();
         const result = await sql('SELECT * FROM repair_chats');
         return result.rows;
-    } catch (err) {
-        console.error("Error fetching repair chats:", err);
+    } catch (err: any) {
+        console.error("Error fetching repair chats:", err.message || err);
         return [];
     }
 };

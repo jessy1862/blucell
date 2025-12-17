@@ -14,7 +14,7 @@ import { AboutUs } from './pages/AboutUs';
 import { CartDrawer } from './components/CartDrawer';
 import { SupportChatWidget } from './components/SupportChatWidget';
 import { Button } from './components/ui';
-import { DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, DEFAULT_TEAM } from './constants';
+import { DEFAULT_LANDING_CONFIG, DEFAULT_CONTACT_INFO, DEFAULT_TEAM, SEED_PRODUCTS } from './constants';
 import { User, CartItem, Product, Currency, Language, ChatSession, ChatMessage, LandingPageConfig, ContactInfo, ContactMessage, Order, RepairJob, TeamMember } from './types';
 import { ShoppingBag, User as UserIcon, Menu, X, Wrench, LogOut, Sun, Moon, Settings, Star, Globe, Coins, ShieldCheck } from 'lucide-react';
 import { generateChatResponse } from './services/geminiService';
@@ -371,7 +371,12 @@ export default function App() {
                   isBestSeller: p.is_best_seller
               }));
               setProducts(formattedProducts);
+          } else {
+              setProducts(SEED_PRODUCTS);
           }
+      }).catch(err => {
+          console.error("Failed to fetch products:", err);
+          setProducts(SEED_PRODUCTS);
       });
   }, []);
 
@@ -535,13 +540,16 @@ export default function App() {
                 issueDescription: r.issue_description,
                 status: r.status as any,
                 customerId: r.customer_id,
-                fixerId: r.fixer_id,
-                dateBooked: r.date_booked,
-                estimatedCost: r.estimated_cost ? Number(r.estimated_cost) : undefined,
-                aiDiagnosis: r.ai_diagnosis,
-                deliveryMethod: r.delivery_method as any,
-                pickupAddress: r.pickup_address,
-                contactPhone: r.contact_phone
+                fixer_id: r.fixer_id,
+                date_booked: r.date_booked,
+                estimated_cost: r.estimated_cost ? Number(r.estimated_cost) : undefined,
+                ai_diagnosis: r.ai_diagnosis,
+                delivery_method: r.delivery_method as any,
+                pickup_address: r.pickup_address,
+                contact_phone: r.contact_phone,
+                courier: r.courier,
+                trackingNumber: r.tracking_number,
+                timeline: JSON.parse(r.timeline || '[]')
             }));
             setAllRepairs(formattedRepairs);
         }
@@ -820,7 +828,10 @@ export default function App() {
           ai_diagnosis: repair.aiDiagnosis,
           delivery_method: repair.deliveryMethod,
           pickup_address: repair.pickupAddress,
-          contact_phone: repair.contactPhone
+          contact_phone: repair.contactPhone,
+          courier: repair.courier,
+          tracking_number: repair.trackingNumber,
+          timeline: JSON.stringify(repair.timeline || [])
       });
   };
 
@@ -840,7 +851,10 @@ export default function App() {
           ai_diagnosis: repair.aiDiagnosis,
           delivery_method: repair.deliveryMethod,
           pickup_address: repair.pickupAddress,
-          contact_phone: repair.contactPhone
+          contact_phone: repair.contactPhone,
+          courier: repair.courier,
+          tracking_number: repair.trackingNumber,
+          timeline: JSON.stringify(repair.timeline || [])
       });
   };
 

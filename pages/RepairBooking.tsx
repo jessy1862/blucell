@@ -113,7 +113,11 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
           estimatedCost: 0, // Placeholder
           deliveryMethod: deliveryMethod,
           contactPhone: deliveryMethod === 'PICKUP' ? contactPhone : undefined,
-          pickupAddress: deliveryMethod === 'PICKUP' ? pickupAddress : undefined
+          pickupAddress: deliveryMethod === 'PICKUP' ? pickupAddress : undefined,
+          timeline: [
+              { status: 'TICKET CREATED', date: new Date().toISOString(), note: 'Repair request submitted.' }
+          ],
+          isPaid: false
       };
 
       if (onBookRepair) {
