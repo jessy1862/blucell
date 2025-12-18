@@ -7,7 +7,7 @@ import {
     Plus, Package, DollarSign, Edit, Trash2, 
     Send, User as UserIcon, Image as ImageIcon,
     LogOut, Upload, Bell, Truck, Briefcase, Cpu, History,
-    LayoutDashboard, FileText, ClipboardList, Smartphone, CreditCard, Menu, Check, X, MapPin, Globe, Mail, Phone, Save, Download, ExternalLink
+    LayoutDashboard, FileText, ClipboardList, Smartphone, CreditCard, Menu, Check, X, MapPin, Globe, Mail, Phone, Save, Download, ExternalLink, Wallet, ArrowUpRight, Eye, Video, Star
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
@@ -79,6 +79,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const [selectedRepair, setSelectedRepair] = useState<RepairJob | null>(null);
     const [repairChatInput, setRepairChatInput] = useState('');
     const [timelineNote, setTimelineNote] = useState('');
+    const [repairRating, setRepairRating] = useState(0);
+    const [repairReview, setRepairReview] = useState('');
     
     // Repair Price Editing State
     const [isEditingCost, setIsEditingCost] = useState(false);
@@ -86,6 +88,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     // Logistics & Payment State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+    const [selectedLogisticOrder, setSelectedLogisticOrder] = useState<Order | null>(null);
+    const [selectedLogisticRepair, setSelectedLogisticRepair] = useState<RepairJob | null>(null);
     
     // Content Management State
     const [activeContentTab, setActiveContentTab] = useState<'landing' | 'contact' | 'about'>('landing');
@@ -108,6 +114,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     useEffect(() => {
         setIsEditingCost(false);
         setCostInput('');
+        setRepairRating(0);
+        setRepairReview('');
     }, [selectedRepair?.id]);
 
     // Role Logic
@@ -287,21 +295,47 @@ export const Dashboard: React.FC<DashboardProps> = ({
     };
 
     const handlePayment = () => {
-        if (!selectedRepair) return;
+        if (!selectedRepair || !selectedRepair.estimatedCost) return;
+        
+        const total = selectedRepair.estimatedCost;
+        // 50/50 Split Calculation
+        const splitAmount = total / 2;
+
         const updatedRepair = {
             ...selectedRepair,
             isPaid: true,
+            status: 'IN_PROGRESS' as const, // Automatically move to in progress after payment
             timeline: [
                 {
                     status: 'PAID',
                     date: new Date().toISOString(),
-                    note: `Payment of ${formatPrice(selectedRepair.estimatedCost || 0)} received.`
+                    note: `Payment of ${formatPrice(total)} received. 50/50 Split: ${formatPrice(splitAmount)} to Fixer, ${formatPrice(splitAmount)} to Platform.`
                 },
                 ...(selectedRepair.timeline || [])
             ]
         };
         onUpdateRepair(updatedRepair);
         setIsPaymentModalOpen(false);
+        setSelectedRepair(updatedRepair);
+    };
+
+    const handleSubmitRating = () => {
+        if (!selectedRepair || repairRating === 0) return;
+        
+        const updatedRepair = {
+            ...selectedRepair,
+            rating: repairRating,
+            review: repairReview,
+            timeline: [
+                {
+                    status: 'RATED',
+                    date: new Date().toISOString(),
+                    note: `Customer rated service ${repairRating}/5 stars.`
+                },
+                ...(selectedRepair.timeline || [])
+            ]
+        };
+        onUpdateRepair(updatedRepair);
         setSelectedRepair(updatedRepair);
     };
 
@@ -318,6 +352,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onAdminReply(selectedSession.id, adminChatInput);
             setAdminChatInput('');
         }
+    };
+
+    const handleWithdraw = (e: React.FormEvent) => {
+        e.preventDefault();
+        alert(`Withdrawal request for ${formatPrice(parseFloat(withdrawAmount))} submitted. Funds will arrive in 2-3 business days.`);
+        setIsWithdrawModalOpen(false);
+        setWithdrawAmount('');
     };
 
     // --- Render Functions ---
@@ -344,6 +385,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <button onClick={() => { setActiveTab('repairs'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'repairs' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
                         <Wrench className="w-4 h-4" /> Repairs
                     </button>
+                    {isFixer && (
+                        <button onClick={() => { setActiveTab('wallet'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'wallet' ? 'bg-blucell-50 text-blucell-700 dark:bg-blucell-900/20 dark:text-blucell-400' : 'text-silver-600 hover:bg-silver-50 dark:hover:bg-silver-800'}`}>
+                            <Wallet className="w-4 h-4" /> Wallet
+                        </button>
+                    )}
                     {isAdmin && (
                         <>
                             <div className="pt-4 pb-2 text-xs font-semibold text-silver-400 uppercase tracking-wider">Admin</div>
@@ -378,6 +424,91 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
         </div>
     );
+
+    const renderWallet = () => {
+        // Calculate earnings: 50% of completed & paid repairs
+        const paidRepairs = myRepairs.filter(r => r.isPaid && r.estimatedCost);
+        const totalEarnings = paidRepairs.reduce((acc, r) => acc + ((r.estimatedCost || 0) / 2), 0);
+        
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold">My Wallet</h2>
+                    <Button onClick={() => setIsWithdrawModalOpen(true)}>
+                        <ArrowUpRight className="w-4 h-4 mr-2" /> Withdraw Funds
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="p-6 bg-gradient-to-br from-blucell-600 to-blucell-800 text-white border-none">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
+                                <Wallet className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-sm font-medium text-blucell-100">Available Balance</span>
+                        </div>
+                        <h3 className="text-4xl font-bold mb-2">{formatPrice(totalEarnings)}</h3>
+                        <p className="text-xs text-blucell-200">Total earnings from {paidRepairs.length} completed jobs (50% Split)</p>
+                    </Card>
+                    
+                    <Card className="p-6">
+                        <h4 className="text-sm font-bold text-silver-500 mb-2 uppercase tracking-wider">Pending Clearance</h4>
+                        <h3 className="text-2xl font-bold text-silver-900 dark:text-white">{formatPrice(0)}</h3>
+                        <p className="text-xs text-silver-400 mt-2">Funds are available immediately after customer payment.</p>
+                    </Card>
+
+                    <Card className="p-6">
+                        <h4 className="text-sm font-bold text-silver-500 mb-2 uppercase tracking-wider">Total Withdrawn</h4>
+                        <h3 className="text-2xl font-bold text-silver-900 dark:text-white">{formatPrice(0)}</h3>
+                        <p className="text-xs text-silver-400 mt-2">Lifetime withdrawals</p>
+                    </Card>
+                </div>
+
+                <Card className="overflow-hidden">
+                    <div className="p-6 border-b border-silver-100 dark:border-silver-800">
+                        <h3 className="font-bold text-lg">Transaction History</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-silver-50 dark:bg-silver-800 text-silver-500">
+                                <tr>
+                                    <th className="px-6 py-3">Date</th>
+                                    <th className="px-6 py-3">Repair ID</th>
+                                    <th className="px-6 py-3">Device</th>
+                                    <th className="px-6 py-3">Total Cost</th>
+                                    <th className="px-6 py-3 text-right">Your Cut (50%)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-silver-100 dark:divide-silver-800">
+                                {paidRepairs.map(repair => (
+                                    <tr key={repair.id} className="hover:bg-silver-50 dark:hover:bg-silver-800/50">
+                                        <td className="px-6 py-4 text-silver-600 dark:text-silver-400">
+                                            {repair.timeline?.find(t => t.status === 'PAID')?.date 
+                                                ? new Date(repair.timeline.find(t => t.status === 'PAID')!.date).toLocaleDateString()
+                                                : new Date().toLocaleDateString()}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium">{repair.id}</td>
+                                        <td className="px-6 py-4">{repair.deviceType}</td>
+                                        <td className="px-6 py-4 text-silver-500">{formatPrice(repair.estimatedCost || 0)}</td>
+                                        <td className="px-6 py-4 text-right font-bold text-green-600 dark:text-green-400">
+                                            +{formatPrice((repair.estimatedCost || 0) / 2)}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {paidRepairs.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-silver-500">
+                                            No earnings yet. Complete repair jobs to earn money.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        );
+    };
 
     const renderOverview = () => (
         <div className="space-y-6 animate-fade-in-up">
@@ -538,40 +669,50 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                     )}
                                 </div>
 
-                                {selectedRepair.images && selectedRepair.images.length > 0 && (
+                                {selectedRepair.attachments && selectedRepair.attachments.length > 0 && (
                                     <div className="mt-6">
                                         <h4 className="text-sm font-bold text-silver-500 mb-3 flex items-center gap-2">
-                                            <ImageIcon className="w-4 h-4" /> Customer Uploaded Photos
+                                            <ImageIcon className="w-4 h-4" /> Customer Attachments
                                         </h4>
                                         <div className="flex gap-3 overflow-x-auto pb-2">
-                                            {selectedRepair.images.map((img, idx) => (
-                                                <div key={idx} className="relative group shrink-0">
-                                                    <a 
-                                                        href={img} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer" 
-                                                        className="block w-24 h-24 rounded-lg overflow-hidden border border-silver-200 dark:border-silver-700 hover:opacity-90 transition-opacity"
-                                                    >
-                                                        <img src={img} alt="Damage Evidence" className="w-full h-full object-cover" />
-                                                    </a>
-                                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                            {selectedRepair.attachments.map((file, idx) => (
+                                                <div key={idx} className="relative group shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-silver-200 dark:border-silver-700 bg-black">
+                                                    {file.type === 'video' ? (
+                                                        <video src={file.url} className="w-full h-full object-cover opacity-80" />
+                                                    ) : (
+                                                        <img src={file.url} alt="Evidence" className="w-full h-full object-cover" />
+                                                    )}
+                                                    
+                                                    {file.type === 'video' && (
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                            <Video className="w-6 h-6 text-white drop-shadow-md" />
+                                                        </div>
+                                                    )}
+
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                                         <a 
-                                                            href={img} 
-                                                            download={`repair-${selectedRepair.id}-${idx}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="bg-black/70 hover:bg-black text-white p-1 rounded-full backdrop-blur-sm"
-                                                            title="View/Save"
+                                                            href={file.url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="text-white hover:text-blucell-400 p-1"
+                                                            title="View"
                                                         >
-                                                            <ExternalLink className="w-3 h-3" />
+                                                            <Eye className="w-4 h-4" />
+                                                        </a>
+                                                        <a 
+                                                            href={file.url} 
+                                                            download={`attachment-${idx}`}
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="text-white hover:text-blucell-400 p-1"
+                                                            title="Download"
+                                                        >
+                                                            <Download className="w-4 h-4" />
                                                         </a>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
-                                        <p className="text-[10px] text-silver-400 mt-1">
-                                            Click an image to view full size. Long press or right-click to save to device.
-                                        </p>
                                     </div>
                                 )}
 
@@ -615,6 +756,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                                 {selectedRepair.estimatedCost ? formatPrice(selectedRepair.estimatedCost) : 'Pending Quote'}
                                             </span>
                                         )}
+                                        {/* Fixer Earnings Display */}
+                                        {isFixer && selectedRepair.estimatedCost && selectedRepair.estimatedCost > 0 && (
+                                            <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800 flex items-center gap-2">
+                                                <Wallet className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                                <p className="text-xs text-green-700 dark:text-green-400 font-bold">
+                                                    Your Payout (50%): {formatPrice(selectedRepair.estimatedCost / 2)}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -623,6 +773,72 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                     <h4 className="font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wider text-silver-500">
                                         <History className="w-4 h-4" /> Repair Timeline
                                     </h4>
+                                    
+                                    {/* Rating Section for Customer (if Completed/Delivered) */}
+                                    {isCustomer && (selectedRepair.status === 'COMPLETED' || selectedRepair.status === 'DELIVERED') && (
+                                        <div className="mb-6 p-4 bg-white dark:bg-silver-900 rounded-lg border border-silver-200 dark:border-silver-700 shadow-sm animate-fade-in">
+                                            <h5 className="font-bold text-sm mb-2 flex items-center gap-2">
+                                                <Star className="w-4 h-4 text-amber-500" /> Rate Service
+                                            </h5>
+                                            {selectedRepair.rating ? (
+                                                <div>
+                                                    <div className="flex gap-1 mb-2">
+                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                            <Star 
+                                                                key={star} 
+                                                                className={`w-5 h-5 ${star <= selectedRepair.rating! ? 'text-amber-500 fill-amber-500' : 'text-silver-300 dark:text-silver-700'}`} 
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    {selectedRepair.review && <p className="text-xs text-silver-600 dark:text-silver-400 italic">"{selectedRepair.review}"</p>}
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div className="flex gap-1">
+                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                            <button 
+                                                                key={star}
+                                                                onClick={() => setRepairRating(star)}
+                                                                className="focus:outline-none transition-transform hover:scale-110"
+                                                            >
+                                                                <Star 
+                                                                    className={`w-6 h-6 ${star <= repairRating ? 'text-amber-500 fill-amber-500' : 'text-silver-300 dark:text-silver-700 hover:text-amber-400'}`} 
+                                                                />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <textarea 
+                                                        placeholder="Write a short review..." 
+                                                        className="w-full text-xs p-2 border rounded bg-transparent dark:border-silver-700 h-16 resize-none"
+                                                        value={repairReview}
+                                                        onChange={(e) => setRepairReview(e.target.value)}
+                                                    />
+                                                    <Button size="sm" onClick={handleSubmitRating} disabled={repairRating === 0} className="w-full">
+                                                        Submit Review
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Rating Display for Others */}
+                                    {(!isCustomer && selectedRepair.rating) && (
+                                         <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
+                                            <div className="flex justify-between items-start">
+                                                <h5 className="font-bold text-sm text-amber-800 dark:text-amber-200 mb-1">Customer Rating</h5>
+                                                <div className="flex gap-0.5">
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <Star 
+                                                            key={star} 
+                                                            className={`w-3 h-3 ${star <= selectedRepair.rating! ? 'text-amber-500 fill-amber-500' : 'text-amber-200 dark:text-amber-800'}`} 
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {selectedRepair.review && <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 italic">"{selectedRepair.review}"</p>}
+                                        </div>
+                                    )}
+
                                     {(isAdmin || isFixer) && (
                                         <div className="mb-6 flex gap-2">
                                             <Input 
@@ -642,12 +858,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                                 <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-silver-900 ${
                                                     event.status === 'NOTE' ? 'bg-silver-400' : 
                                                     event.status === 'PAID' ? 'bg-green-500' :
+                                                    event.status === 'RATED' ? 'bg-amber-500' :
                                                     event.status === 'QUOTE_UPDATED' ? 'bg-blue-500' :
                                                     'bg-blucell-500'
                                                 }`}></div>
                                                 <div className="flex justify-between items-start">
                                                     <p className={`font-medium text-sm ${event.status === 'NOTE' ? 'text-silver-600 dark:text-silver-400' : 'text-silver-900 dark:text-white'}`}>
-                                                        {event.status === 'NOTE' ? 'Note Added' : event.status === 'QUOTE_UPDATED' ? 'Price Updated' : event.status}
+                                                        {event.status === 'NOTE' ? 'Note Added' : event.status === 'QUOTE_UPDATED' ? 'Price Updated' : event.status === 'RATED' ? 'Review Added' : event.status}
                                                     </p>
                                                     <span className="text-[10px] text-silver-400">{new Date(event.date).toLocaleDateString()}</span>
                                                 </div>
@@ -790,6 +1007,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                     <p className="text-xs text-silver-500">{order.items.length} items</p>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    <Button size="sm" variant="ghost" onClick={() => setSelectedLogisticOrder(order)} className="text-xs bg-silver-100 dark:bg-silver-700/50">
+                                        View Content
+                                    </Button>
                                     <Badge color="yellow">{order.status}</Badge>
                                     <Button size="sm" variant="ghost" onClick={() => onUpdateOrder(order.id, 'DELIVERED')} title="Mark Delivered">
                                         <Check className="w-4 h-4" />
@@ -807,7 +1027,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             <div key={repair.id} className="p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
                                 <div className="flex justify-between items-start mb-2">
                                     <p className="font-bold text-sm">{repair.deviceType}</p>
-                                    <Badge color="blue">Pickup Req</Badge>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setSelectedLogisticRepair(repair)}>
+                                            <Eye className="w-3 h-3 mr-1" /> View Request
+                                        </Button>
+                                        <Badge color="blue">Pickup Req</Badge>
+                                    </div>
                                 </div>
                                 <div className="text-xs text-silver-500 mb-2">
                                     <p>Address: {repair.pickupAddress}</p>
@@ -1205,6 +1430,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                  <main className="flex-1 overflow-auto p-6">
                     {activeTab === 'overview' && renderOverview()}
                     {activeTab === 'repairs' && renderRepairs()}
+                    {activeTab === 'wallet' && isFixer && renderWallet()}
                     {activeTab === 'orders' && <div className="text-center py-12 text-silver-400">Orders Management (See Logistics Tab for Admin)</div>}
                     {activeTab === 'users' && renderUsers()}
                     {activeTab === 'logistics' && renderLogistics()}
@@ -1283,6 +1509,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
                              <Button type="submit" className="w-full">Pay Now</Button>
                         </form>
                     </div>
+                </Modal>
+            )}
+
+            {isWithdrawModalOpen && (
+                <Modal title="Withdraw Funds" onClose={() => setIsWithdrawModalOpen(false)}>
+                    <form className="space-y-4" onSubmit={handleWithdraw}>
+                        <div className="p-4 bg-blucell-50 dark:bg-blucell-900/10 rounded-lg mb-4">
+                            <p className="text-sm text-blucell-700 dark:text-blucell-300">Available Balance: {formatPrice(myRepairs.filter(r => r.isPaid && r.estimatedCost).reduce((acc, r) => acc + ((r.estimatedCost || 0) / 2), 0))}</p>
+                        </div>
+                        <Input 
+                            label="Amount to Withdraw" 
+                            type="number" 
+                            placeholder="0.00" 
+                            value={withdrawAmount} 
+                            onChange={(e) => setWithdrawAmount(e.target.value)} 
+                            required 
+                        />
+                        <Input label="Bank Account Number" placeholder="**** **** **** 1234" required />
+                        <Input label="Routing Number" placeholder="123456789" required />
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setIsWithdrawModalOpen(false)}>Cancel</Button>
+                            <Button type="submit">Submit Request</Button>
+                        </div>
+                    </form>
                 </Modal>
             )}
 
@@ -1441,6 +1691,100 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                     </form>
                  </Modal>
+            )}
+
+            {selectedLogisticOrder && (
+                <Modal title={`Order #${selectedLogisticOrder.id} Content`} onClose={() => setSelectedLogisticOrder(null)}>
+                    <div className="space-y-4">
+                        <div className="bg-silver-50 dark:bg-silver-800 p-4 rounded-lg flex justify-between items-center text-sm">
+                            <div>
+                                <p className="text-silver-500">Order Date</p>
+                                <p className="font-bold">{new Date(selectedLogisticOrder.date).toLocaleDateString()}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-silver-500">Total Value</p>
+                                <p className="font-bold text-blucell-600 dark:text-blucell-400">{formatPrice(selectedLogisticOrder.total)}</p>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h4 className="font-bold mb-2 text-sm text-silver-600 dark:text-silver-400">Items in Package</h4>
+                            <div className="space-y-3">
+                                {selectedLogisticOrder.items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-4 items-center p-3 border border-silver-100 dark:border-silver-800 rounded-lg">
+                                        <div className="w-12 h-12 bg-silver-100 dark:bg-silver-800 rounded overflow-hidden flex-shrink-0">
+                                            <img src={item.image} alt={item.productName} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-sm">{item.productName}</p>
+                                            <p className="text-xs text-silver-500">Qty: {item.quantity}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="pt-4 flex justify-end">
+                            <Button variant="ghost" onClick={() => setSelectedLogisticOrder(null)}>Close</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {selectedLogisticRepair && (
+                <Modal title={`Repair Request #${selectedLogisticRepair.id}`} onClose={() => setSelectedLogisticRepair(null)}>
+                    <div className="space-y-4">
+                        <div className="bg-silver-50 dark:bg-silver-800 p-4 rounded-lg space-y-2 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-silver-500">Device</span>
+                                <span className="font-bold">{selectedLogisticRepair.deviceType}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-silver-500">Requested Pickup</span>
+                                <span className="font-bold">{selectedLogisticRepair.dateBooked}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold mb-2 text-sm">Issue Description</h4>
+                            <div className="p-3 bg-silver-50 dark:bg-silver-800/50 border border-silver-100 dark:border-silver-800 rounded-lg text-sm">
+                                {selectedLogisticRepair.issueDescription}
+                            </div>
+                        </div>
+
+                        {selectedLogisticRepair.attachments && selectedLogisticRepair.attachments.length > 0 && (
+                            <div>
+                                <h4 className="font-bold mb-2 text-sm">Customer Attachments</h4>
+                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                    {selectedLogisticRepair.attachments.map((file, idx) => (
+                                        <a key={idx} href={file.url} target="_blank" rel="noopener noreferrer" className="block w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-silver-200 dark:border-silver-700 bg-black relative">
+                                            {file.type === 'video' ? (
+                                                <>
+                                                    <video src={file.url} className="w-full h-full object-cover opacity-80" />
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        <Video className="w-6 h-6 text-white" />
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <img src={file.url} alt="Damage" className="w-full h-full object-cover" />
+                                            )}
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="pt-4 flex justify-between gap-4">
+                            <Button variant="ghost" onClick={() => setSelectedLogisticRepair(null)}>Close</Button>
+                            <Button onClick={() => {
+                                setSelectedRepair(selectedLogisticRepair);
+                                setSelectedLogisticRepair(null);
+                                setActiveTab('repairs');
+                            }}>
+                                Open Full Manager
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );

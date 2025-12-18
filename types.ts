@@ -1,5 +1,4 @@
 
-
 export type UserRole = 'CUSTOMER' | 'FIXER' | 'ADMIN' | 'SUPER_ADMIN' | 'ADMIN_JR';
 
 export type AvailabilityStatus = 'ONLINE' | 'OFFLINE' | 'BUSY';
@@ -33,6 +32,11 @@ export interface Product {
   isBestSeller?: boolean;
 }
 
+export interface Attachment {
+  url: string;
+  type: 'image' | 'video';
+}
+
 export interface RepairJob {
   id: string;
   deviceId: string;
@@ -51,7 +55,9 @@ export interface RepairJob {
   trackingNumber?: string;
   timeline?: { status: string; date: string; note?: string }[];
   isPaid?: boolean;
-  images?: string[];
+  attachments?: Attachment[];
+  rating?: number;
+  review?: string;
 }
 
 export interface Order {

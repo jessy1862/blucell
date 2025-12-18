@@ -93,6 +93,8 @@ export interface NeonRepairJob {
     timeline?: string; // JSON string
     is_paid?: boolean;
     images?: string; // JSON string of urls
+    rating?: number;
+    review?: string;
 }
 
 export interface NeonOrder {
@@ -360,14 +362,16 @@ const ensureRepairsTable = async () => {
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS timeline TEXT;`); } catch (e) {}
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;`); } catch (e) {}
     try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS images TEXT;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS rating INTEGER;`); } catch (e) {}
+    try { await sql(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS review TEXT;`); } catch (e) {}
 }
 
 export const saveRepairToNeon = async (repair: NeonRepairJob) => {
     try {
         await ensureRepairsTable();
         await sql(`
-            INSERT INTO repairs (id, device_id, device_type, issue_description, status, customer_id, fixer_id, date_booked, estimated_cost, ai_diagnosis, delivery_method, pickup_address, contact_phone, courier, tracking_number, timeline, is_paid, images)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            INSERT INTO repairs (id, device_id, device_type, issue_description, status, customer_id, fixer_id, date_booked, estimated_cost, ai_diagnosis, delivery_method, pickup_address, contact_phone, courier, tracking_number, timeline, is_paid, images, rating, review)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
             ON CONFLICT (id) DO UPDATE SET
                 status = EXCLUDED.status,
                 fixer_id = EXCLUDED.fixer_id,
@@ -380,7 +384,9 @@ export const saveRepairToNeon = async (repair: NeonRepairJob) => {
                 tracking_number = EXCLUDED.tracking_number,
                 timeline = EXCLUDED.timeline,
                 is_paid = EXCLUDED.is_paid,
-                images = EXCLUDED.images;
+                images = EXCLUDED.images,
+                rating = EXCLUDED.rating,
+                review = EXCLUDED.review;
         `, [
             repair.id,
             repair.device_id,
@@ -399,7 +405,9 @@ export const saveRepairToNeon = async (repair: NeonRepairJob) => {
             repair.tracking_number || null,
             repair.timeline || '[]',
             repair.is_paid || false,
-            repair.images || '[]'
+            repair.images || '[]',
+            repair.rating || null,
+            repair.review || null
         ]);
         console.log("Repair saved to Neon:", repair.id);
     } catch (err: any) {

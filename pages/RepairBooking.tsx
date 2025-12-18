@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, SectionTitle, Badge, StatusIndicator } from '../components/ui';
 import { analyzeRepairRequest } from '../services/geminiService';
-import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check, User, Truck, MapPin } from 'lucide-react';
+import { Loader2, Upload, Smartphone, Battery, Cpu, Wifi, X, MessageSquare, Check, User, Truck, MapPin, Video, FileVideo, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { RepairJob, User as UserType } from '../types';
+import { RepairJob, User as UserType, Attachment } from '../types';
 import { storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 
 interface RepairBookingProps {
@@ -12,13 +12,14 @@ interface RepairBookingProps {
   user?: UserType;
   onBookRepair?: (repair: RepairJob) => void;
   fixers?: UserType[];
+  repairs?: RepairJob[];
 }
 
-export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) => `$${p}`, user, onBookRepair, fixers = [] }) => {
+export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) => `$${p}`, user, onBookRepair, fixers = [], repairs = [] }) => {
   const [step, setStep] = useState(1);
   const [device, setDevice] = useState('');
   const [issue, setIssue] = useState('');
-  const [images, setImages] = useState<{file: File, preview: string}[]>([]);
+  const [mediaItems, setMediaItems] = useState<{file: File, preview: string, type: 'image' | 'video'}[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
@@ -32,24 +33,34 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
   const [newRepairId, setNewRepairId] = useState('');
   const navigate = useNavigate();
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files) as File[];
-      const newImages = newFiles.map(file => ({
+      const newMedia = newFiles.map(file => ({
         file,
-        preview: URL.createObjectURL(file)
+        preview: URL.createObjectURL(file),
+        type: file.type.startsWith('video/') ? 'video' as const : 'image' as const
       }));
-      setImages(prev => [...prev, ...newImages]);
+      setMediaItems(prev => [...prev, ...newMedia]);
     }
   };
 
-  const removeImage = (index: number) => {
-    setImages(prev => {
-        const newImages = [...prev];
-        URL.revokeObjectURL(newImages[index].preview); // Cleanup
-        newImages.splice(index, 1);
-        return newImages;
+  const removeMedia = (index: number) => {
+    setMediaItems(prev => {
+        const newMedia = [...prev];
+        URL.revokeObjectURL(newMedia[index].preview); // Cleanup
+        newMedia.splice(index, 1);
+        return newMedia;
     });
+  };
+
+  const getFixerStats = (fixerId: string) => {
+      const fixerRepairs = repairs.filter(r => r.fixerId === fixerId && r.rating);
+      if (fixerRepairs.length === 0) return { rating: 5.0, count: 0 }; // Default to 5.0 for new fixers
+      
+      const totalRating = fixerRepairs.reduce((acc, r) => acc + (r.rating || 0), 0);
+      const average = totalRating / fixerRepairs.length;
+      return { rating: average.toFixed(1), count: fixerRepairs.length };
   };
 
   const handleAnalyze = async () => {
@@ -57,8 +68,10 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
     setIsAnalyzing(true);
 
     try {
-        // Convert images to base64 for the API
-        const imageParts = await Promise.all(images.map(async (img) => {
+        // Filter only images for AI analysis to avoid payload issues with large videos
+        const imageItems = mediaItems.filter(m => m.type === 'image');
+        
+        const imageParts = await Promise.all(imageItems.map(async (img) => {
             return new Promise<any>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => {
@@ -103,19 +116,22 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
       const id = `repair-${Date.now()}`;
       setNewRepairId(id);
 
-      // Upload Images to Firebase
-      const imageUrls: string[] = [];
-      if (images.length > 0) {
+      // Upload Media to Firebase
+      const uploadedAttachments: Attachment[] = [];
+      if (mediaItems.length > 0) {
         try {
-            await Promise.all(images.map(async (img) => {
-                const storageRef = ref(storage, `repair-images/${id}/${img.file.name}`);
-                await uploadBytes(storageRef, img.file);
+            await Promise.all(mediaItems.map(async (item) => {
+                const storageRef = ref(storage, `repair-uploads/${id}/${item.file.name}`);
+                await uploadBytes(storageRef, item.file);
                 const url = await getDownloadURL(storageRef);
-                imageUrls.push(url);
+                uploadedAttachments.push({
+                    url,
+                    type: item.type
+                });
             }));
         } catch (err) {
-            console.error("Failed to upload repair images", err);
-            // Continue even if image upload fails, but warn?
+            console.error("Failed to upload repair media", err);
+            // Continue even if upload fails
         }
       }
       
@@ -137,7 +153,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
               { status: 'TICKET CREATED', date: new Date().toISOString(), note: 'Repair request submitted.' }
           ],
           isPaid: false,
-          images: imageUrls
+          attachments: uploadedAttachments
       };
 
       if (onBookRepair) {
@@ -196,33 +212,42 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Device Images (Optional)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Device Content (Images & Video)</label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors h-32 text-center">
                     <Upload className="w-6 h-6 text-slate-400 mb-2" />
-                    <span className="text-xs text-slate-500 font-medium">Add Photo</span>
+                    <span className="text-xs text-slate-500 font-medium">Add Photo/Video</span>
                     <input 
                         type="file" 
                         className="hidden" 
-                        accept="image/*" 
+                        accept="image/*,video/*" 
                         multiple 
-                        onChange={handleImageUpload}
+                        onChange={handleMediaUpload}
                     />
                 </label>
                 
-                {images.map((img, idx) => (
+                {mediaItems.map((item, idx) => (
                     <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 h-32 group bg-slate-100 dark:bg-slate-800">
-                        <img src={img.preview} alt="Upload preview" className="w-full h-full object-cover" />
+                        {item.type === 'video' ? (
+                            <div className="w-full h-full flex items-center justify-center bg-black">
+                                <video src={item.preview} className="w-full h-full object-cover opacity-80" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <FileVideo className="w-8 h-8 text-white" />
+                                </div>
+                            </div>
+                        ) : (
+                            <img src={item.preview} alt="Upload preview" className="w-full h-full object-cover" />
+                        )}
                         <button 
-                            onClick={() => removeImage(idx)}
-                            className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 focus:opacity-100"
+                            onClick={() => removeMedia(idx)}
+                            className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 focus:opacity-100 z-10"
                         >
                             <X className="w-3 h-3" />
                         </button>
                     </div>
                 ))}
               </div>
-              <p className="text-xs text-slate-400 mt-2">Upload clear photos of the damage to help our AI diagnose the issue more accurately.</p>
+              <p className="text-xs text-slate-400 mt-2">Upload clear photos or a short video of the damage to help us diagnose the issue.</p>
             </div>
 
             <Button 
@@ -231,7 +256,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                 disabled={!device || !issue}
                 isLoading={isAnalyzing}
             >
-                {isAnalyzing ? 'Analyzing Device & Images...' : 'Run Diagnostics'}
+                {isAnalyzing ? 'Analyzing Device...' : 'Run Diagnostics'}
             </Button>
           </div>
         </Card>
@@ -361,6 +386,7 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {fixers.length > 0 ? fixers.map((fixer) => {
                         const isUnavailable = fixer.availabilityStatus === 'OFFLINE' || fixer.availabilityStatus === 'BUSY';
+                        const stats = getFixerStats(fixer.id);
                         return (
                         <Card 
                             key={fixer.id} 
@@ -387,7 +413,10 @@ export const RepairBooking: React.FC<RepairBookingProps> = ({ formatPrice = (p) 
                             
                             <div className="flex gap-2 mb-4">
                                 <Badge color="blue">Certified</Badge>
-                                <Badge color="green">98% Success</Badge>
+                                <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full text-xs font-medium text-amber-600 dark:text-amber-400">
+                                    <Star className="w-3 h-3 fill-current" />
+                                    {stats.rating} ({stats.count})
+                                </div>
                             </div>
 
                             <Button 

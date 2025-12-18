@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './services/firebase';
 import { 
@@ -79,7 +78,9 @@ const App: React.FC = () => {
           getRepairChatsFromNeon()
         ]);
 
-        if (dbProducts && dbProducts.length > 0) {
+        if (dbProducts.length > 0) {
+            // Map DB fields to TS interfaces if needed, assuming direct mapping for now
+            // Need to parse JSON fields if they come as strings from Neon
             const parsedProducts = dbProducts.map((p: any) => ({
                 ...p,
                 specs: typeof p.specs === 'string' ? JSON.parse(p.specs) : p.specs
@@ -87,11 +88,12 @@ const App: React.FC = () => {
             setProducts(parsedProducts);
         }
         
-        if (dbRepairs && dbRepairs.length > 0) {
+        if (dbRepairs.length > 0) {
             const parsedRepairs = dbRepairs.map((r: any) => ({
                 ...r,
                 timeline: typeof r.timeline === 'string' ? JSON.parse(r.timeline) : r.timeline,
                 attachments: typeof r.images === 'string' ? JSON.parse(r.images) : r.images,
+                // map snake_case to camelCase
                 deviceId: r.device_id,
                 deviceType: r.device_type,
                 issueDescription: r.issue_description,
@@ -109,7 +111,7 @@ const App: React.FC = () => {
             setRepairs(parsedRepairs);
         }
 
-        if (dbOrders && dbOrders.length > 0) {
+        if (dbOrders.length > 0) {
              const parsedOrders = dbOrders.map((o: any) => ({
                 ...o,
                 items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
@@ -118,7 +120,7 @@ const App: React.FC = () => {
             setOrders(parsedOrders);
         }
 
-        if (dbUsers && dbUsers.length > 0) {
+        if (dbUsers.length > 0) {
             const parsedUsers = dbUsers.map((u: any) => ({
                 ...u,
                 availabilityStatus: u.availability_status
@@ -126,27 +128,25 @@ const App: React.FC = () => {
             setUsers(parsedUsers);
         }
 
+        // Repair Chats
         const chatMap: Record<string, ChatMessage[]> = {};
-        if (dbRepairChats) {
-            dbRepairChats.forEach((chat: any) => {
-                chatMap[chat.repair_id] = typeof chat.messages === 'string' ? JSON.parse(chat.messages) : chat.messages;
-            });
-        }
+        dbRepairChats.forEach((chat: any) => {
+            chatMap[chat.repair_id] = typeof chat.messages === 'string' ? JSON.parse(chat.messages) : chat.messages;
+        });
         setRepairChats(chatMap);
 
-        if (dbSessions) {
-            const parsedSessions = dbSessions.map((s: any) => ({
-                ...s,
-                userId: s.user_id,
-                userName: s.user_name,
-                userAvatar: s.user_avatar,
-                messages: typeof s.messages === 'string' ? JSON.parse(s.messages) : s.messages,
-                unreadCount: s.unread_count,
-                lastMessage: s.last_message,
-                lastMessageTime: new Date(s.last_message_time)
-            }));
-            setSupportSessions(parsedSessions);
-        }
+        // Support Sessions (Admin View)
+        const parsedSessions = dbSessions.map((s: any) => ({
+            ...s,
+            userId: s.user_id,
+            userName: s.user_name,
+            userAvatar: s.user_avatar,
+            messages: typeof s.messages === 'string' ? JSON.parse(s.messages) : s.messages,
+            unreadCount: s.unread_count,
+            lastMessage: s.last_message,
+            lastMessageTime: new Date(s.last_message_time)
+        }));
+        setSupportSessions(parsedSessions);
 
       } catch (err) {
         console.error("Failed to load initial data", err);
@@ -160,6 +160,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Fetch full user profile from Neon
         const dbUser = await getUserFromNeon(firebaseUser.uid);
         if (dbUser) {
             setUser({
@@ -174,6 +175,7 @@ const App: React.FC = () => {
                 address: dbUser.address
             });
         } else {
+            // Fallback to basic firebase info if DB fetch fails or first login race condition
              setUser({
                 id: firebaseUser.uid,
                 name: firebaseUser.displayName || 'User',
@@ -184,8 +186,9 @@ const App: React.FC = () => {
             });
         }
         
-        const sessions = await getChatSessionsFromNeon();
-        const mySession = sessions?.find((s: any) => s.user_id === firebaseUser.uid);
+        // Load user's chat session
+        const sessions = await getChatSessionsFromNeon(); // In real app, filter by user ID via API
+        const mySession = sessions.find((s: any) => s.user_id === firebaseUser.uid);
         if (mySession) {
              const msgs = typeof mySession.messages === 'string' ? JSON.parse(mySession.messages) : mySession.messages;
              setUserChatMessages(msgs.map((m: any) => ({...m, timestamp: new Date(m.timestamp)})));
@@ -201,6 +204,7 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Handlers
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -235,7 +239,9 @@ const App: React.FC = () => {
   const clearCart = () => setCart([]);
 
   const handleBookRepair = async (repair: RepairJob) => {
+    // Optimistic Update
     setRepairs(prev => [repair, ...prev]);
+    // Save to DB
     await saveRepairToNeon({
         id: repair.id,
         device_id: repair.deviceId,
@@ -258,7 +264,6 @@ const App: React.FC = () => {
 
   const handleUpdateRepair = async (updatedRepair: RepairJob) => {
       setRepairs(prev => prev.map(r => r.id === updatedRepair.id ? updatedRepair : r));
-      // Fix property access on updatedRepair (camelCase properties)
       await saveRepairToNeon({
         id: updatedRepair.id,
         device_id: updatedRepair.deviceId,
@@ -296,6 +301,7 @@ const App: React.FC = () => {
       if (!user) return;
       const newUser = { ...user, ...updatedData };
       setUser(newUser);
+      // Update in DB
       await saveUserToNeon({
           id: newUser.id,
           name: newUser.name,
@@ -304,10 +310,11 @@ const App: React.FC = () => {
           avatar: newUser.avatar,
           bio: newUser.bio,
           availability_status: newUser.availabilityStatus,
-          created_at: new Date().toISOString(),
+          created_at: new Date().toISOString(), // won't overwrite due to conflict handler logic if needed, or pass original
           phone: newUser.phone,
           address: newUser.address
       });
+      // Also update in users list if admin
       setUsers(prev => prev.map(u => u.id === newUser.id ? newUser : u));
   };
 
@@ -317,17 +324,21 @@ const App: React.FC = () => {
       setCart([]);
   };
 
+  // Chat Logic
   const handleSupportMessage = async (text: string) => {
-      if (!user) return;
+      if (!user) return; // Must be logged in
+      
       const newMessage: ChatMessage = {
           id: Date.now().toString(),
           senderId: user.id,
           text: text,
           timestamp: new Date()
       };
+
       const updatedMessages = [...userChatMessages, newMessage];
       setUserChatMessages(updatedMessages);
 
+      // AI Response
       const aiReplyText = await generateChatResponse(updatedMessages, text);
       const aiMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
@@ -336,11 +347,13 @@ const App: React.FC = () => {
           timestamp: new Date(),
           isSystem: true
       };
+      
       const finalMessages = [...updatedMessages, aiMessage];
       setUserChatMessages(finalMessages);
 
-      await saveChatSessionToNeon({
-          id: user.id,
+      // Save Session
+      const sessionData: any = {
+          id: user.id, // simplified session ID = User ID
           user_id: user.id,
           user_name: user.name,
           user_avatar: user.avatar,
@@ -349,9 +362,11 @@ const App: React.FC = () => {
           last_message: text,
           last_message_time: new Date().toISOString(),
           status: 'OPEN'
-      });
+      };
+      await saveChatSessionToNeon(sessionData);
   };
 
+  // Repair Chat Logic
   const handleRepairMessage = async (repairId: string, text: string, senderId: string) => {
       const currentMessages = repairChats[repairId] || [];
       const newMessage: ChatMessage = {
@@ -361,7 +376,12 @@ const App: React.FC = () => {
           timestamp: new Date()
       };
       const updatedMessages = [...currentMessages, newMessage];
-      setRepairChats(prev => ({ ...prev, [repairId]: updatedMessages }));
+      
+      setRepairChats(prev => ({
+          ...prev,
+          [repairId]: updatedMessages
+      }));
+
       await saveRepairChatToNeon({
           repair_id: repairId,
           messages: JSON.stringify(updatedMessages),
@@ -369,6 +389,7 @@ const App: React.FC = () => {
       });
   };
 
+  // Admin / Management Handlers
   const handleAddProduct = async (product: Product) => {
       setProducts(prev => [product, ...prev]);
       await saveProductToNeon({
@@ -408,6 +429,7 @@ const App: React.FC = () => {
       await deleteProductFromNeon(id);
   };
 
+  // Routing Protection
   const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
     if (!user) return <Navigate to="/auth" />;
@@ -424,9 +446,21 @@ const App: React.FC = () => {
             <Route path="/shop" element={<Marketplace addToCart={addToCart} products={products} formatPrice={formatPrice} />} />
             <Route path="/bestsellers" element={<BestSellers addToCart={addToCart} products={products} formatPrice={formatPrice} />} />
             <Route path="/repair" element={<RepairBooking formatPrice={formatPrice} user={user || undefined} onBookRepair={handleBookRepair} fixers={users.filter(u => u.role === 'FIXER')} repairs={repairs} />} />
-            <Route path="/checkout" element={ user ? <Checkout cart={cart} clearCart={clearCart} formatPrice={formatPrice} onPlaceOrder={handlePlaceOrder} /> : <Navigate to="/auth" /> } />
+            <Route path="/checkout" element={
+              user ? <Checkout 
+                        cart={cart} 
+                        clearCart={clearCart} 
+                        formatPrice={formatPrice}
+                        onPlaceOrder={handlePlaceOrder}
+                     /> 
+                   : <Navigate to="/auth" />
+            } />
             <Route path="/auth" element={<Auth onLogin={(u) => setUser(u)} />} />
-            <Route path="/profile" element={ <ProtectedRoute><ProfileSettings user={user!} onUpdate={handleUpdateUser} onLogout={handleLogout} /></ProtectedRoute> } />
+            <Route path="/profile" element={
+                <ProtectedRoute>
+                    <ProfileSettings user={user!} onUpdate={handleUpdateUser} onLogout={handleLogout} />
+                </ProtectedRoute>
+            } />
             <Route path="/dashboard" element={
                 <ProtectedRoute>
                     <Dashboard 
@@ -439,7 +473,7 @@ const App: React.FC = () => {
                         onUpdatePlatformSettings={() => {}}
                         formatPrice={formatPrice}
                         supportSessions={supportSessions}
-                        onAdminReply={() => {}}
+                        onAdminReply={(sid, text) => {/* Implement admin reply logic */}}
                         onCreateSession={() => ""}
                         landingPageConfig={landingConfig}
                         onUpdateLandingPage={setLandingConfig}
@@ -465,15 +499,31 @@ const App: React.FC = () => {
             <Route path="/contact" element={<ContactUs contactInfo={contactInfo} />} />
             <Route path="/about" element={<AboutUs team={team} />} />
         </Routes>
-        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} cart={cart} updateQuantity={updateCartQuantity} removeItem={removeFromCart} formatPrice={formatPrice} />
+
+        <CartDrawer 
+            isOpen={isCartOpen} 
+            onClose={() => setIsCartOpen(false)} 
+            cart={cart} 
+            updateQuantity={updateCartQuantity} 
+            removeItem={removeFromCart} 
+            formatPrice={formatPrice} 
+        />
+
+        {/* Floating Cart Button for non-dashboard pages */}
         {!isCartOpen && cart.length > 0 && (
-            <button onClick={() => setIsCartOpen(true)} className="fixed bottom-24 right-6 z-40 p-4 bg-white dark:bg-silver-800 text-silver-900 dark:text-white rounded-full shadow-xl border border-silver-200 dark:border-silver-700 md:hidden">
+            <button 
+                onClick={() => setIsCartOpen(true)}
+                className="fixed bottom-24 right-6 z-40 p-4 bg-white dark:bg-silver-800 text-silver-900 dark:text-white rounded-full shadow-xl border border-silver-200 dark:border-silver-700 md:hidden"
+            >
                 <div className="relative">
                     <ShoppingBag className="w-6 h-6" />
-                    <span className="absolute -top-2 -right-2 bg-blucell-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{cart.reduce((acc, i) => acc + i.quantity, 0)}</span>
+                    <span className="absolute -top-2 -right-2 bg-blucell-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                        {cart.reduce((acc, i) => acc + i.quantity, 0)}
+                    </span>
                 </div>
             </button>
         )}
+
         {user && <SupportChatWidget messages={userChatMessages} onSendMessage={handleSupportMessage} currentUser={user} />}
       </BrowserRouter>
     </div>

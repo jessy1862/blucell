@@ -2,8 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from "../types";
 
-// Initialize with the environment variable directly.
-// The app assumes the API key is present for full functionality.
+// The API key is obtained exclusively from the environment variable process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeRepairRequest = async (device: string, description: string, images: any[] = []): Promise<string> => {
@@ -19,12 +18,10 @@ export const analyzeRepairRequest = async (device: string, description: string, 
       Do not promise exact prices, just estimates.
     `;
 
-    // Construct the parts array correctly for the API
-    // images array is expected to contain objects like { inlineData: { data: '...', mimeType: '...' } }
     const parts = [{ text: promptText }, ...images];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: { parts },
     });
 
@@ -37,7 +34,6 @@ export const analyzeRepairRequest = async (device: string, description: string, 
 
 export const generateChatResponse = async (history: ChatMessage[], newMessage: string): Promise<string> => {
     try {
-        // Format history for the model
         const conversationContext = history.map(msg => 
             `${msg.senderId === 'user' || msg.senderId.startsWith('u') ? 'Customer' : 'Support Agent'}: ${msg.text}`
         ).join('\n');
@@ -49,7 +45,6 @@ export const generateChatResponse = async (history: ChatMessage[], newMessage: s
         1. Assist customers with questions about buying gadgets (phones, drones, etc.) or booking repairs.
         2. Be concise, professional, and friendly.
         3. If a user asks about order/repair status, guide them to their Dashboard.
-        4. If you can't answer, apologize and say a human agent will review the chat.
         
         Current Conversation History:
         ${conversationContext}
@@ -60,7 +55,7 @@ export const generateChatResponse = async (history: ChatMessage[], newMessage: s
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
         });
         
