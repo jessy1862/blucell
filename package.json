@@ -15,7 +15,8 @@
     "@google/genai": "0.2.1",
     "lucide-react": "0.330.0",
     "recharts": "2.12.0",
-    "@neondatabase/serverless": "0.9.0"
+    "@neondatabase/serverless": "0.9.0",
+    "firebase": "^12.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
