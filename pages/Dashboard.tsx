@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Product, Order, RepairJob, ChatSession, LandingPageConfig, ContactInfo, ContactMessage, UserRole, AvailabilityStatus, ChatMessage, TeamMember } from '../types';
 import { Card, Button, Input, Badge, Modal, StatusIndicator, SectionTitle } from '../components/ui';
@@ -133,7 +132,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return allRepairs.filter(r => r.customerId === user.id);
     }, [allRepairs, isAdmin, isFixer, user.id]);
 
-    const stats = [
+    // Added explicit type to stats array to fix inference errors when pushing mixed value/hide types
+    const stats: { label: string; value: string | number; icon: any; color: string; hide?: boolean }[] = [
         { label: 'Total Orders', value: myOrders.length, icon: ShoppingBag, color: 'bg-blue-500' },
         { label: 'Active Repairs', value: myRepairs.filter(r => r.status !== 'COMPLETED' && r.status !== 'DELIVERED').length, icon: Wrench, color: 'bg-orange-500' },
         { label: 'Total Spent', value: formatPrice(myOrders.reduce((acc, o) => acc + o.total, 0)), icon: DollarSign, color: 'bg-green-500', hide: isFixer },
@@ -830,7 +830,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                                     {[1, 2, 3, 4, 5].map((star) => (
                                                         <Star 
                                                             key={star} 
-                                                            className={`w-3 h-3 ${star <= selectedRepair.rating! ? 'text-amber-500 fill-amber-500' : 'text-amber-200 dark:text-amber-800'}`} 
+                                                            className={`w-3 h-3 ${star <= selectedRepair.rating! ? 'text-amber-500 fill-amber-500' : 'text-silver-300 dark:text-silver-700'}`} 
                                                         />
                                                     ))}
                                                 </div>
